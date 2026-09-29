@@ -39,29 +39,25 @@ fn poisoned(ctl: &Control) -> bool {
     format!("{ctl:?}").contains("poisoned")
 }
 
-/// A well-formed aspif header whose one rule uses an out-of-range literal
-/// (`-2147483648`, `i32::MIN`), which `clingo_control_load_aspif` accepts as
-/// aspif syntax but clasp itself rejects while building the program: a
-/// clasp-side failure, not an aspif parse error. The file still declares a
-/// later atom (`c`, from `4 1 c 1 3`) that this failure must keep out of the
-/// program.
+/// A well-formed aspif file whose weight rule (atom 2, lower bound `i32::MAX`,
+/// two body atoms of weight `i32::MAX`) sums to more than an `i32`, which
+/// `clingo_control_load_aspif` accepts as aspif syntax but clasp itself rejects
+/// while building the program: a clasp-side failure, not an aspif parse error.
+/// The file still declares later atoms (`c`, from `4 1 c 1 4`) that this
+/// failure must keep out of the program.
 ///
 /// Oracle: checked directly against clingo 5.8.2 through the Python module's
-/// C API, 2026-09-27: `clingo_control_load_aspif` on this file fails with a
-/// runtime error ("Id out of range" / "atom out of range", not a located
-/// aspif syntax error), and the control's grounding afterward has no atom
-/// `c`: only the rule ids before the failing one were ever committed.
-const CLASP_SIDE_FAILURE: &str =
-    "asp 1 0 0\n1 0 1 1 0 0\n4 1 a 1 1\n1 0 1 2 0 1 -2147483648\n1 0 1 3 0 0\n4 1 c 1 3\n0\n";
+/// C API, 2026-09-29: `clingo_control_load_aspif` on this file fails with a
+/// runtime error ("Integer overflow!" from clasp's `simplifySum`, without a
+/// file position, so not a located aspif syntax error).
+///
+/// The out-of-range literal `i32::MIN` also makes clasp reject a load, but only
+/// after clingo has grown its tables in proportion to it (UPSTREAM-ISSUES U22),
+/// which takes about 19 GB on 64-bit hosts and exhausts a 32-bit address space,
+/// so it is no fixture for a test that must run everywhere.
+const CLASP_SIDE_FAILURE: &str = "asp 1 0 0\n1 0 1 1 0 0\n4 1 a 1 1\n\
+     1 0 1 2 1 2147483647 2 3 2147483647 4 2147483647\n1 0 1 3 0 0\n1 0 1 4 0 0\n4 1 c 1 4\n0\n";
 
-// The literal makes clingo grow its tables in proportion to it before it reports
-// the range error (UPSTREAM-ISSUES U22): about 19 GB on 64-bit, more than the
-// whole address space of a 32-bit process, which then aborts on its next
-// allocation. The other tests of this file cover the poisoning on 32-bit.
-#[cfg_attr(
-    target_pointer_width = "32",
-    ignore = "clingo exhausts a 32-bit address space on this literal (U22)"
-)]
 #[test]
 fn a_clasp_side_load_aspif_failure_poisons_the_control() {
     let dir = scratch_dir("load_aspif_failures_clasp_side");
@@ -69,7 +65,10 @@ fn a_clasp_side_load_aspif_failure_poisons_the_control() {
 
     let mut ctl = Control::new().unwrap();
     let loaded = ctl.load_aspif([&file]);
-    assert!(loaded.is_err(), "the malformed literal must fail to load");
+    assert!(
+        loaded.is_err(),
+        "the overflowing weight rule must fail to load"
+    );
     assert_ne!(
         loaded.as_ref().unwrap_err().kind(),
         ErrorKind::Parse,

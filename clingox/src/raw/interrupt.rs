@@ -82,8 +82,9 @@
 //!
 //! - **A blocking search on a build without threads is not interrupted from
 //!   inside it.** Where clasp has threads, `Control::solve` runs in async mode
-//!   and waits for the result, which is as fast as clingo's own blocking solve
-//!   and keeps the phases above. Without threads (the default WebAssembly
+//!   and waits for the result, which keeps the phases above; the search runs
+//!   as fast as clingo's own blocking solve, plus a thread start of about
+//!   50 us per call (see `ControlHandle::solve`). Without threads (the default WebAssembly
 //!   build) there is no async mode, so it uses mode 0, in which the whole
 //!   search, from clingo's preparation of the program to the finish event,
 //!   runs inside one `clingo_control_solve` call on the control's thread. The

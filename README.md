@@ -125,10 +125,13 @@ pages for people coming from
   are still present in some form and 3 changed shape. See
   [`docs/dev/CLINGO6.md`](docs/dev/CLINGO6.md).
 - **Performance is measured, with a caveat.** [`docs/dev/BENCHMARKS.md`](docs/dev/BENCHMARKS.md)
-  compares clingox with the `clingo` crate and pyclingo: symbols, models and callbacks
-  cost about the same as in the crate, and configuration and statistics reads by path
-  cost two to three times more. The crate builds clingo 5.6.2, so rows where clingo does
-  the work differ by version, not by wrapper. See the guide's
+  compares clingox with the `clingo` crate, pyclingo and clingo's own C++ API: symbols,
+  models and callbacks cost about the same as in the crate, and configuration and
+  statistics reads by path cost two to three times more. The crate builds clingo 5.6.2,
+  so rows where clingo does the work differ by version, not by wrapper. Against the C++
+  API on the same clingo 5.8.2, grounding and solving take the same time, and small
+  calls (creating or reading a symbol, stepping to the next model) cost 20 to 200 ns
+  more each. See the guide's
   [performance page](guide/src/reference/performance.md).
 - **Not on crates.io, and pre-release.** The API may still change.
 

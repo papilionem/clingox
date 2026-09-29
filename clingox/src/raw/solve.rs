@@ -365,10 +365,18 @@ impl ControlHandle {
     /// (DESIGN S7).
     ///
     /// Where clasp has threads, the search runs in async mode and this thread
-    /// waits for it in `clingo_solve_handle_get`. That is as fast as clingo's
-    /// own blocking solve, since both run clasp's `solve` to its end in one go,
-    /// and it keeps the start of the search apart from its run, which the
-    /// interrupt design needs. A yield search would be driven model by model
+    /// waits for it in `clingo_solve_handle_get`. The search itself runs as
+    /// fast as clingo's own blocking solve, since both run clasp's `solve` to
+    /// its end in one go (65 536 models: 17.2 ms either way). Each call pays a
+    /// fixed cost on top, because clasp starts a new thread for every async
+    /// search (`clasp_facade.cpp:378`): a trivial program took 159 us against
+    /// 108 us blocking in a C++ measurement, pinned to one core or not
+    /// (`docs/dev/BENCHMARKS.md`). That is negligible for a real search and
+    /// significant for many tiny multi-shot solves. Async mode is kept because
+    /// it separates the start of the search from its run, which the interrupt
+    /// design needs (`raw::interrupt`, DESIGN S13 and S14): an
+    /// `InterruptHandle` or a timeout can reach the search only once the
+    /// strategy is known to be running, never before or after. A yield search would be driven model by model
     /// from this thread instead, up to 21 times slower with several solver
     /// threads, and clasp would not give the warnings of a blocking solve.
     /// Without threads, the search runs in mode 0 inside `clingo_control_solve`

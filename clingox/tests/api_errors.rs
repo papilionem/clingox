@@ -227,9 +227,10 @@ fn messages_and_locations_display_as_clingo_wrote_them() {
 
 /// File names may contain `:` and `-`, so a prefix that looks like a location
 /// followed by `-` is only the start of one if what follows is a valid end.
-/// This needs a file, reached with `#include`.
+/// This needs a file, reached with `#include`. Windows does not allow `:` in a
+/// file name, so the case cannot be built there.
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+#[cfg(not(any(target_os = "android", target_family = "wasm", windows)))]
 fn a_file_name_with_colons_and_dashes_is_read_whole() {
     let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("api_errors_g3");
     std::fs::create_dir_all(&dir).unwrap();

@@ -1081,7 +1081,12 @@ fn the_cycle_check_walks_a_deep_value() {
 /// Everything runs on the one small thread, `Ast` being `!Send`, so building
 /// and dropping the chain must fit in 16 MiB too; both are iterative in
 /// clingo for a chain of single-argument functions.
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+///
+/// Not on Windows: there clingo's own recursion, in building and dropping the
+/// chain, is what overflows. Measured on the MSVC build, 100 000 levels need more
+/// than 128 MiB on `x86_64` and more than 32 MiB on i686, well beyond any stack a
+/// recursive check would overflow, so nothing separates the two there.
+#[cfg(not(any(target_os = "android", target_family = "wasm", windows)))]
 #[test]
 fn the_cycle_check_does_not_recurse_on_a_small_stack() {
     std::thread::Builder::new()

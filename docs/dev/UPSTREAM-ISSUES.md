@@ -224,11 +224,6 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
   `ProgramLiteral::from_raw`/`Atom` accepted values that are in-range but far
   beyond the program's actual atoms. `Control::load_aspif`
   and the backend's own doc comments now cross-reference this entry.
-- **32-bit targets:** the growth is larger than the whole address space of a
-  32-bit process, so clingo runs out of memory partway and the process aborts on
-  its next allocation. `load_aspif_failures.rs` ignores its one test that loads
-  `i32::MIN` on 32-bit targets; the other tests of the file cover the same
-  poisoning there.
 - **Upstream tracker:** not searched yet.
 - **Status:** worked around in clingox.
 - **clingo 6 (wip-20):** Still present on the backend path (run). Head atom 5e8 allocates 495 MB before failing. `assign_external` and `release_external` are gone. Issue draft ready.
