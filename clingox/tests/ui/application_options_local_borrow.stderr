@@ -1,0 +1,23 @@
+error[E0373]: closure may outlive the current function, but it borrows `total`, which is owned by the current function
+  --> tests/ui/application_options_local_borrow.rs:13:70
+   |
+11 |         .register_options(|options| {
+   |                            ------- has type `&mut Options<'1>`
+12 |             let mut total = 0;
+13 |             options.add(OptionSpec::new("Group", "count", "counts"), |value| {
+   |                                                                      ^^^^^^^ may outlive borrowed value `total`
+14 |                 total += value.len();
+   |                 ----- `total` is borrowed here
+   |
+note: function requires argument type to outlive `'1`
+  --> tests/ui/application_options_local_borrow.rs:13:13
+   |
+13 | /             options.add(OptionSpec::new("Group", "count", "counts"), |value| {
+14 | |                 total += value.len();
+15 | |                 Ok(())
+16 | |             })
+   | |______________^
+help: to force the closure to take ownership of `total` (and any other referenced variables), use the `move` keyword
+   |
+13 |             options.add(OptionSpec::new("Group", "count", "counts"), move |value| {
+   |                                                                      ++++

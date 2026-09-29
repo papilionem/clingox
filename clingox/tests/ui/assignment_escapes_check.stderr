@@ -1,0 +1,116 @@
+error[E0277]: `RefCell<Option<Assignment<'_>>>` cannot be shared between threads safely
+  --> tests/ui/assignment_escapes_check.rs:37:21
+   |
+37 | impl Propagator for Escape<'_> {
+   |                     ^^^^^^^^^^ `RefCell<Option<Assignment<'_>>>` cannot be shared between threads safely
+   |
+   = help: within `Escape<'_>`, the trait `Sync` is not implemented for `RefCell<Option<Assignment<'_>>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/assignment_escapes_check.rs:33:8
+   |
+33 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `Propagator`
+  --> src/propagate.rs
+   |
+   | pub trait Propagator: Send + Sync {
+   |                              ^^^^ required by this bound in `Propagator`
+
+error[E0277]: `*const clingox_sys::bindings::clingo_assignment` cannot be sent between threads safely
+  --> tests/ui/assignment_escapes_check.rs:37:21
+   |
+37 | impl Propagator for Escape<'_> {
+   |                     ^^^^^^^^^^ `*const clingox_sys::bindings::clingo_assignment` cannot be sent between threads safely
+   |
+   = help: within `Option<Assignment<'_>>`, the trait `Send` is not implemented for `*const clingox_sys::bindings::clingo_assignment`
+note: required because it appears within the type `clingox::raw::propagate::RawAssignment<'_>`
+  --> src/raw/propagate.rs
+   |
+   | pub(crate) struct RawAssignment<'a> {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `Assignment<'_>`
+  --> src/propagate.rs
+   |
+   | pub struct Assignment<'a> {
+   |            ^^^^^^^^^^
+note: required because it appears within the type `Option<Assignment<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required for `RefCell<Option<Assignment<'_>>>` to implement `Send`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/assignment_escapes_check.rs:33:8
+   |
+33 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `Propagator`
+  --> src/propagate.rs
+   |
+   | pub trait Propagator: Send + Sync {
+   |                       ^^^^ required by this bound in `Propagator`
+
+error[E0277]: `Cell<bool>` cannot be shared between threads safely
+  --> tests/ui/assignment_escapes_check.rs:37:21
+   |
+37 | impl Propagator for Escape<'_> {
+   |                     ^^^^^^^^^^ `Cell<bool>` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `Cell<bool>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` or `std::sync::atomic::AtomicBool` instead
+   = note: required for `&Cell<bool>` to implement `Send`
+note: required because it appears within the type `Option<&Cell<bool>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+note: required because it appears within the type `Assignment<'_>`
+  --> src/propagate.rs
+   |
+   | pub struct Assignment<'a> {
+   |            ^^^^^^^^^^
+note: required because it appears within the type `Option<Assignment<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required for `RefCell<Option<Assignment<'_>>>` to implement `Send`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/assignment_escapes_check.rs:33:8
+   |
+33 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `Propagator`
+  --> src/propagate.rs
+   |
+   | pub trait Propagator: Send + Sync {
+   |                       ^^^^ required by this bound in `Propagator`
+
+error: lifetime may not live long enough
+  --> tests/ui/assignment_escapes_check.rs:39:10
+   |
+38 |     fn check(&self, control: &mut PropagateControl<'_>) -> Result<()> {
+   |              -----           - let's call the lifetime of this reference `'1`
+   |              |
+   |              has type `&Escape<'2>`
+39 |         *self.slot.borrow_mut() = Some(control.assignment());
+   |          ^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'1` must outlive `'2`
+   |
+   = note: requirement occurs because of the type `RefCell<Option<Assignment<'_>>>`, which makes the generic argument `Option<Assignment<'_>>` invariant
+   = note: the struct `RefCell<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error: lifetime may not live long enough
+  --> tests/ui/assignment_escapes_check.rs:39:10
+   |
+38 |     fn check(&self, control: &mut PropagateControl<'_>) -> Result<()> {
+   |              -----  ------- has type `&mut PropagateControl<'3>`
+   |              |
+   |              has type `&Escape<'2>`
+39 |         *self.slot.borrow_mut() = Some(control.assignment());
+   |          ^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'3` must outlive `'2`
+   |
+   = note: requirement occurs because of the type `RefCell<Option<Assignment<'_>>>`, which makes the generic argument `Option<Assignment<'_>>` invariant
+   = note: the struct `RefCell<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

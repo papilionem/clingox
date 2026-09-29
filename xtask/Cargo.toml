@@ -1,0 +1,18 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+bindgen = "0.73.2"
+clingox-sys = { version = "508.2.0-alpha.0", path = "../clingox-sys" }
+prettyplease = "0.3.0"
+serde_json = "1.0.151"
+syn = { version = "3.0.6", features = ["full"] }

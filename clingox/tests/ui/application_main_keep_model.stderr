@@ -1,0 +1,31 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_keep_model.rs:15:14
+   |
+11 |     let slot: std::cell::RefCell<Option<&clingox::Model>> = std::cell::RefCell::new(None);
+   |         ---- `slot` declared here, outside of the closure body
+12 |     Application::new()
+13 |         .main(|ctl, _files| {
+   |                --- `ctl` is a reference that is only valid in the closure body
+14 |             let mut handle = ctl.solve_yield(&[])?;
+15 |             *slot.borrow_mut() = handle.next_model()?;
+   |              ^^^^^^^^^^^^^^^^^ `ctl` escapes the closure body here
+   |
+   = note: requirement occurs because of the type `RefCell<Option<&Model>>`, which makes the generic argument `Option<&Model>` invariant
+   = note: the struct `RefCell<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error[E0597]: `handle` does not live long enough
+  --> tests/ui/application_main_keep_model.rs:15:34
+   |
+11 |     let slot: std::cell::RefCell<Option<&clingox::Model>> = std::cell::RefCell::new(None);
+   |         ---- lifetime `'2` appears in the type of `slot`
+...
+14 |             let mut handle = ctl.solve_yield(&[])?;
+   |                 ---------- binding `handle` declared here
+15 |             *slot.borrow_mut() = handle.next_model()?;
+   |              -----------------   ^^^^^^ borrowed value does not live long enough
+   |              |
+   |              argument requires that `handle` is borrowed for `'2`
+16 |             Ok(())
+17 |         })
+   |         - `handle` dropped here while still borrowed

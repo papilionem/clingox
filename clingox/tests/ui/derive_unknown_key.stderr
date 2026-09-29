@@ -1,0 +1,5 @@
+error: unknown key `rename` in `#[clingo(..)]`; a struct or variant takes `name = ".."`
+ --> tests/ui/derive_unknown_key.rs:8:10
+  |
+8 | #[clingo(rename = "edge")]
+  |          ^^^^^^

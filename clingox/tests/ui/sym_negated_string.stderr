@@ -1,0 +1,5 @@
+error: `-"x"`: classical negation applies to functions and constants, such as `-p` or `-p(1)`, not to strings; a `-` before an integer makes it negative
+ --> tests/ui/sym_negated_string.rs:6:30
+  |
+6 |     let _ = clingox::sym!(p(-"x"));
+  |                              ^^^

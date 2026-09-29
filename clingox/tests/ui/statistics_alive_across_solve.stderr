@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `ctl` as mutable because it is also borrowed as immutable
+  --> tests/ui/statistics_alive_across_solve.rs:11:19
+   |
+10 |     let stats = ctl.statistics().unwrap();
+   |                 --- immutable borrow occurs here
+11 |     let _result = ctl.solve(&[]);
+   |                   ^^^^^^^^^^^^^^ mutable borrow occurs here
+12 |     let _total = stats.value("summary.times.total");
+   |                  ----- immutable borrow later used here

@@ -1,0 +1,933 @@
+# Continuous integration for clingox.
+#
+# Every step that checks something is a `cargo xtask` command where one exists,
+# so a run here is the command a contributor runs locally (docs/dev/TESTING.md,
+# section 7). Where xtask cannot run (BSD virtual machines, iOS, the Android
+# cross build) the workflow runs the equivalent `cargo` command and says so.
+#
+# Trigger policy:
+#   pull_request   tier 1: lint, `xtask check`, tests on four hosts, WASM on
+#                  Node.js, MSRV, cargo-deny, semver.
+#   push to main   everything: tier 1 plus the extra hosts, iOS, Android,
+#                  browsers, sanitizers, Miri and the BSDs.
+#   schedule       nightly.yml calls this workflow, so the same full matrix
+#                  runs on a schedule; `github.event_name` is then `schedule`.
+#
+# Branch protection should require the single `conclusion` job, which is green
+# only when every job that ran succeeded (jobs skipped by the trigger policy
+# count as green).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+
+# Called from nightly.yml, `github.workflow` is the caller's name, so the two
+# workflows never share a group (a shared group would block the called one).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_NET_RETRY: "10"
+  RUSTUP_MAX_RETRIES: "10"
+  RUST_BACKTRACE: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # ---------------------------------------------------------------- tier 1
+
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  # `cargo xtask check` on one host: fmt, clippy, docs, doctests, cargo-deny,
+  # the stale-bindings and generated-AST checks, the submodule pin, the unsafe
+  # budget, the conformance recount, the guide build and the package check.
+  check:
+    name: xtask check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+          # The semver step of `check` reads the baseline tag.
+          fetch-tags: true
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-deny,mdbook,cargo-semver-checks
+      # bindgen loads libclang when `xtask check` regenerates the bindings.
+      - run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - run: cargo xtask check
+
+  # The two clippy passes and the docs of `xtask check`, on the hosts whose
+  # `cfg` branches Linux never compiles (Windows and macOS code paths).
+  lint-hosts:
+    name: clippy and docs (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15]
+    env:
+      CLINGOX_SYS_CCACHE: ${{ startsWith(matrix.os, 'windows') && '0' || 'auto' }}
+    steps:
+      # Windows runners check out with CRLF and short paths by default; the
+      # vendored clingo must match its pinned commit byte for byte, and its
+      # build tree nests deeply.
+      - name: Keep line endings as committed, allow long paths
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          components: clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        if: ${{ !startsWith(matrix.os, 'windows') }}
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo clippy --locked --workspace --lib --bins -- -D warnings
+      - run: cargo clippy --locked --workspace --tests --benches --examples -- -D warnings
+      - run: cargo doc --locked --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      # The version is read from the workspace manifest, so it is stated once.
+      - id: msrv
+        run: echo "version=$(sed -n 's/^rust-version *= *"\(.*\)"/\1/p' Cargo.toml)" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo check --locked --workspace --all-targets --all-features
+
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-deny
+      - run: cargo deny check
+
+  semver:
+    name: cargo-semver-checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+          # `xtask semver` extracts the baseline from the tag in
+          # xtask/semver-baseline with `git archive`.
+          fetch-tags: true
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-semver-checks
+      - run: cargo xtask semver
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025, macos-15]
+    env:
+      CLINGOX_SYS_CCACHE: ${{ startsWith(matrix.os, 'windows') && '0' || 'auto' }}
+    steps:
+      # Windows runners check out with CRLF and short paths by default; the
+      # vendored clingo must match its pinned commit byte for byte, and its
+      # build tree nests deeply.
+      - name: Keep line endings as committed, allow long paths
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      # ccache reads MSVC's debug-information flags badly, so Windows builds
+      # clingo without it.
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        if: ${{ !startsWith(matrix.os, 'windows') }}
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      # `cargo test --workspace` on the host, including systest and trybuild.
+      - run: cargo xtask test linux
+
+  wasm-node:
+    name: test (wasm32-unknown-emscripten, Node.js)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-emscripten
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      # The pinned emsdk lives in .tools/emsdk, where `xtask test wasm` looks.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/emsdk
+          key: emsdk-${{ runner.os }}-${{ hashFiles('xtask/emsdk-version') }}
+      - run: cargo xtask setup wasm
+      - run: cargo xtask test wasm
+
+  # ------------------------------------------ main and nightly, not on pull requests
+
+  test-extra:
+    name: test (${{ matrix.os }})
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    # An experimental host is one nobody has run the suite on yet. It reports
+    # its failures, but does not block `conclusion`. Remove the flag once the
+    # job has been green (see PORTABILITY.md, "Experimental jobs").
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            experimental: false
+          - os: windows-11-arm
+            experimental: true
+    env:
+      CLINGOX_SYS_CCACHE: ${{ startsWith(matrix.os, 'windows') && '0' || 'auto' }}
+    steps:
+      # Windows runners check out with CRLF and short paths by default; the
+      # vendored clingo must match its pinned commit byte for byte, and its
+      # build tree nests deeply.
+      - name: Keep line endings as committed, allow long paths
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        if: ${{ !startsWith(matrix.os, 'windows') }}
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo xtask test linux
+
+  # aarch64-apple-ios-sim, run in the simulator by a custom cargo runner
+  # (.github/scripts/ios-sim-runner.sh, `xcrun simctl spawn`). cargo-dinghy was
+  # the alternative: it wraps every test executable in an app bundle and needs
+  # signing and launch plumbing this suite does not use, while `simctl spawn`
+  # runs a plain command-line executable directly. The simulator cannot start
+  # child processes for the tests that need one, so those skip themselves
+  # through `can_spawn()`; threads work.
+  ios:
+    name: test (iOS simulator)
+    if: github.event_name != 'pull_request'
+    runs-on: macos-15
+    timeout-minutes: 90
+    continue-on-error: true # experimental, see PORTABILITY.md
+    env:
+      CLINGOX_SYS_CCACHE: auto
+      CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUNNER: ${{ github.workspace }}/.github/scripts/ios-sim-runner.sh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Boot an iPhone simulator
+        run: |
+          udid=$(xcrun simctl list devices available -j | jq -r '
+            [.devices | to_entries[] | select(.key | test("iOS")) | .value[]
+             | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$udid" && test "$udid" != null
+          xcrun simctl bootstatus "$udid" -b
+          echo "IOS_SIM_UDID=$udid" >> "$GITHUB_ENV"
+      - name: Build the test executables
+        run: |
+          cargo test --locked --target aarch64-apple-ios-sim -p clingox-sys --no-run
+          cargo test --locked --target aarch64-apple-ios-sim -p clingox --no-run
+      # The runner must pass a failing status through: an unknown libtest
+      # option makes a test executable exit non-zero, so this is the control
+      # that shows a red test cannot look green.
+      - name: Check the runner reports failures
+        run: |
+          exe=$(find target/aarch64-apple-ios-sim/debug/deps -maxdepth 1 -type f -perm -u+x -name 'version-*' | head -n 1)
+          test -n "$exe"
+          if .github/scripts/ios-sim-runner.sh "$exe" --no-such-option; then
+            echo "the simulator runner turned a failing run into a pass" >&2
+            exit 1
+          fi
+      # trybuild's compile_fail test runs cargo inside the test, which the
+      # simulator cannot do, so it is the one test file left out.
+      - name: Run clingox-sys tests in the simulator
+        run: cargo test --locked --target aarch64-apple-ios-sim -p clingox-sys
+      - name: Run clingox tests in the simulator
+        run: |
+          args=(--lib)
+          for file in clingox/tests/*.rs; do
+            name=$(basename "$file" .rs)
+            [ "$name" = compile_fail ] || args+=(--test "$name")
+          done
+          cargo test --locked --target aarch64-apple-ios-sim -p clingox "${args[@]}"
+
+  # x86_64 emulator with KVM, driven by `cargo xtask test android`, which
+  # builds with the runner's NDK (ANDROID_NDK_HOME) and pushes each test
+  # executable with adb.
+  android-x86_64:
+    name: test (Android x86_64 emulator)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: x86_64-linux-android
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Put adb on PATH for xtask
+        run: echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 2
+          ram-size: 4096M
+          disk-size: 8192M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: cargo xtask test android
+
+  # Builds the aarch64 Android test executables on x86_64 (the NDK ships host
+  # tools for x86_64 Linux only) and keeps them as an artifact, so the build
+  # is checked and the executables can be run wherever an arm64 device exists
+  # (android-arm64 below, or by hand).
+  android-arm64-build:
+    name: build (Android arm64-v8a)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CLINGOX_SYS_CCACHE: auto
+      ANDROID_PLATFORM: "24"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build the test executables
+        run: .github/scripts/android-build-tests.sh aarch64-linux-android aarch64-linux-android aarch64-linux-android android-arm64-tests
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-arm64-tests
+          path: android-arm64-tests
+          retention-days: 14
+          if-no-files-found: error
+
+  # Runs those executables on an arm64-v8a emulator when the arm64 runner
+  # offers KVM. Whether it does is unverified, so the job probes /dev/kvm and,
+  # without it, prints a notice and stops after the artifact (uploaded by the
+  # build job) exists. Android 11+ on arm64 is where U18 says clingo 5.8 is
+  # broken, so a red result here can be the real finding: api-level 30 is the
+  # oldest image that shows it.
+  android-arm64:
+    name: test (Android arm64-v8a emulator)
+    if: github.event_name != 'pull_request'
+    needs: android-arm64-build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    continue-on-error: true # experimental, see PORTABILITY.md
+    steps:
+      # Only the helper script is needed from the repository.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: android-arm64-tests
+          path: android-arm64-tests
+      - name: Probe for KVM
+        id: kvm
+        run: |
+          if [ -e /dev/kvm ]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Android arm64::/dev/kvm is absent on this runner, so no arm64 emulator was started. The built test executables are in the android-arm64-tests artifact of the build job."
+          fi
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        if: steps.kvm.outputs.available == 'true'
+        with:
+          api-level: 30
+          target: google_apis
+          arch: arm64-v8a
+          profile: pixel_6
+          cores: 2
+          ram-size: 4096M
+          disk-size: 8192M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/android-run-tests.sh android-arm64-tests arm64-v8a
+
+  # Native 32-bit x86. cc and cmake receive -m32 from the target triple (the
+  # `cmake` crate forwards the `cc` crate's flags); unverified, see PORTABILITY.md.
+  linux-i686:
+    name: test (i686-unknown-linux-gnu)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    continue-on-error: true # experimental, see PORTABILITY.md
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: i686-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
+      - run: cargo test --locked --target i686-unknown-linux-gnu -p clingox-sys -p clingox
+
+  windows-i686:
+    name: test (i686-pc-windows-msvc)
+    if: github.event_name != 'pull_request'
+    runs-on: windows-2025
+    timeout-minutes: 120
+    continue-on-error: true # experimental, see PORTABILITY.md
+    env:
+      CLINGOX_SYS_CCACHE: "0"
+    steps:
+      - name: Keep line endings as committed, allow long paths
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: i686-pc-windows-msvc
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo test --locked --target i686-pc-windows-msvc -p clingox-sys -p clingox
+
+  # armv7 Linux, cross-compiled and run under qemu-user (nightly only: an
+  # emulated run is slow). binfmt lets the tests' child processes start the
+  # test binary again; QEMU_LD_PREFIX gives those children the target libc.
+  armv7-qemu:
+    name: test (armv7-unknown-linux-gnueabihf, qemu-user)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    continue-on-error: true # experimental, see PORTABILITY.md
+    env:
+      CLINGOX_SYS_CCACHE: auto
+      QEMU_LD_PREFIX: /usr/arm-linux-gnueabihf
+      CC_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-gcc
+      CXX_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-g++
+      AR_armv7_unknown_linux_gnueabihf: arm-linux-gnueabihf-ar
+      CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_LINKER: arm-linux-gnueabihf-gcc
+      CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABIHF_RUNNER: qemu-arm -L /usr/arm-linux-gnueabihf
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: armv7-unknown-linux-gnueabihf
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf qemu-user qemu-user-binfmt
+      - run: cargo test --locked --target armv7-unknown-linux-gnueabihf -p clingox-sys -p clingox
+
+  # 32-bit Android on one x86 emulator with KVM: i686-linux-android natively,
+  # then armv7-linux-androideabi through the image's ARM translation. That the
+  # translation runs plain command-line executables is unproven, so the second
+  # run only warns; its executables are an artifact either way.
+  android-32bit:
+    name: test (Android i686, armv7 by translation)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    continue-on-error: true # experimental, see PORTABILITY.md
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: i686-linux-android, armv7-linux-androideabi
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build both sets of test executables
+        run: |
+          .github/scripts/android-build-tests.sh i686-linux-android i686-linux-android i686-linux-android android-i686-tests
+          .github/scripts/android-build-tests.sh armv7-linux-androideabi armv7a-linux-androideabi arm-linux-androideabi android-armv7-tests
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: android-32bit-tests
+          path: |
+            android-i686-tests
+            android-armv7-tests
+          retention-days: 14
+          if-no-files-found: error
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Put adb on PATH
+        run: echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+      - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86
+          profile: pixel_6
+          cores: 2
+          ram-size: 3072M
+          disk-size: 8192M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            bash .github/scripts/android-run-tests.sh android-i686-tests x86
+            bash .github/scripts/android-run-tests.sh android-armv7-tests armeabi-v7a || echo "::warning title=Android armv7::the ARM translation did not run the armv7 test executables"
+
+  wasm-browser:
+    name: test (WASM in ${{ matrix.browser }})
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-emscripten
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: wasm-browser
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: wasm-browser
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/emsdk
+          key: emsdk-${{ runner.os }}-${{ hashFiles('xtask/emsdk-version') }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('xtask/browser/package-lock.json') }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - run: cargo xtask setup wasm
+      # npm ci and Playwright's three browsers; then the system libraries the
+      # chosen engine needs, which `playwright install` does not fetch.
+      - run: cargo xtask setup browser
+      - run: xtask/browser/node_modules/.bin/playwright install-deps ${{ matrix.browser }}
+      - run: cargo xtask test wasm --browser ${{ matrix.browser }} --timeout 300
+
+  # ASan and LSan, then TSan on the thread tests (nightly, Linux x86_64).
+  sanitize:
+    name: sanitizers (ASan, LSan, TSan)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: sanitize
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 800M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      # xtask compiles clingo with clang for the instrumented builds.
+      - run: sudo apt-get update && sudo apt-get install -y clang
+      # ThreadSanitizer aborts at start-up ("unexpected memory mapping") on
+      # runner kernels whose ASLR uses more than 28 bits of mmap entropy.
+      - run: sudo sysctl -w vm.mmap_rnd_bits=28
+      - run: cargo xtask setup sanitize
+      - run: cargo xtask sanitize
+
+  miri:
+    name: Miri
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: miri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo xtask setup miri
+      - run: cargo xtask miri
+
+  # The BSDs run in virtual machines on a Linux runner. xtask is not used in
+  # them: the VM has no ccache or Node.js, and `cargo test --workspace` is the
+  # command `xtask test linux` runs. Nothing is copied back (the target
+  # directory is gigabytes).
+
+  freebsd:
+    name: test (FreeBSD)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: vmactions/freebsd-vm@a2f9a41fa97f6848b8c3b791087dfcdaa5b473ff # v1.5.8
+        with:
+          release: "14"
+          arch: x86_64
+          mem: 8192
+          cpu: 4
+          sync: rsync
+          copyback: false
+          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUSTUP_MAX_RETRIES RUST_BACKTRACE
+          prepare: |
+            set -eu
+            pkg install -y cmake ninja curl ca_root_nss
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          run: |
+            set -eu
+            . "$HOME/.cargo/env"
+            rustc -vV
+            cargo test --locked --workspace
+
+  netbsd:
+    name: test (NetBSD)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    continue-on-error: true # experimental, see PORTABILITY.md
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: vmactions/netbsd-vm@c8a0d7ddb84619a7a8cc4e652efa7950b3fd9f92 # v1.5.2
+        with:
+          release: "10"
+          arch: x86_64
+          mem: 8192
+          cpu: 4
+          sync: rsync
+          copyback: false
+          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUSTUP_MAX_RETRIES RUST_BACKTRACE
+          prepare: |
+            set -eu
+            /usr/sbin/pkg_add cmake ninja-build curl mozilla-rootcerts-openssl
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+          run: |
+            set -eu
+            . "$HOME/.cargo/env"
+            # The base compiler is GCC with libstdc++; build.rs would link
+            # libc++ for any *BSD (PORTABILITY.md).
+            export CXXSTDLIB=stdc++
+            rustc -vV
+            cargo test --locked --workspace
+
+  openbsd:
+    name: test (OpenBSD)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    continue-on-error: true # experimental, see PORTABILITY.md
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        with:
+          release: "7"
+          arch: x86_64
+          mem: 8192
+          cpu: 4
+          sync: rsync
+          copyback: false
+          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUST_BACKTRACE
+          # rustup has no OpenBSD host, so the packaged Rust is used. It can be
+          # older than rust-version, hence --ignore-rust-version: a build that
+          # then fails on a missing language feature is the finding.
+          prepare: |
+            set -eu
+            pkg_add cmake ninja rust
+          run: |
+            set -eu
+            # rustc needs more data segment than the login class allows.
+            ulimit -d "$(ulimit -H -d)"
+            rustc -vV
+            cargo test --locked --ignore-rust-version --workspace
+
+  # ------------------------------------------------------------ aggregator
+
+  # The one job to require in branch protection. It is skipped-tolerant, so a
+  # pull request (which skips the main-only jobs) and a push both work.
+  conclusion:
+    name: conclusion
+    if: always()
+    needs:
+      - fmt
+      - check
+      - lint-hosts
+      - msrv
+      - deny
+      - semver
+      - test
+      - wasm-node
+      - test-extra
+      - ios
+      - android-x86_64
+      - android-arm64-build
+      - android-arm64
+      - linux-i686
+      - windows-i686
+      - armv7-qemu
+      - android-32bit
+      - wasm-browser
+      - sanitize
+      - miri
+      - freebsd
+      - netbsd
+      - openbsd
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every job succeeded or was skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success" or .result == "skipped")' > /dev/null

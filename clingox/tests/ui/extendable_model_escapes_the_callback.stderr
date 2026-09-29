@@ -1,0 +1,92 @@
+error[E0277]: `*mut u8` cannot be sent between threads safely
+  --> tests/ui/extendable_model_escapes_the_callback.rs:29:57
+   |
+29 |     ctl.solve_with_events(clingox::SolveOptions::new(), Escape { slot: &mut kept })
+   |         -----------------                               ^^^^^^^^^^^^^^^^^^^^^^^^^^ `*mut u8` cannot be sent between threads safely
+   |         |
+   |         required by a bound introduced by this call
+   |
+   = help: within `Escape<'_>`, the trait `Send` is not implemented for `*mut u8`
+   = note: required because it appears within the type `(*mut u8, PhantomPinned)`
+note: required because it appears within the type `PhantomData<(*mut u8, PhantomPinned)>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::model::ModelData`
+  --> src/raw/model.rs
+   |
+   | pub(crate) struct ModelData {
+   |                   ^^^^^^^^^
+note: required because it appears within the type `Model`
+  --> src/model.rs
+   |
+   | pub struct Model(ModelData);
+   |            ^^^^^
+   = note: required because it appears within the type `&mut Model`
+note: required because it appears within the type `ExtendableModel<'_>`
+  --> src/model.rs
+   |
+   | pub struct ExtendableModel<'m> {
+   |            ^^^^^^^^^^^^^^^
+   = note: required because it appears within the type `&mut ExtendableModel<'_>`
+note: required because it appears within the type `Option<&mut ExtendableModel<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required because it appears within the type `&mut Option<&mut ExtendableModel<'_>>`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/extendable_model_escapes_the_callback.rs:11:8
+   |
+11 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+  --> src/solve_events.rs
+   |
+   |     pub fn solve_with_events<H>(&mut self, options: SolveOptions, handler: H) -> Result<SolveResult>
+   |            ----------------- required by a bound in this associated function
+   |     where
+   |         H: SolveEventHandler + Send,
+   |                                ^^^^ required by this bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+
+error: lifetime may not live long enough
+  --> tests/ui/extendable_model_escapes_the_callback.rs:19:9
+   |
+15 | impl<'a> SolveEventHandler for Escape<'a> {
+   |      -- lifetime `'a` defined here
+16 |     fn on_model(&mut self, model: &mut ExtendableModel<'_>) -> Result<ControlFlow<()>> {
+   |                                   - let's call the lifetime of this reference `'2`
+...
+19 |         *self.slot = Some(model);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^ assignment requires that `'2` must outlive `'a`
+
+error: lifetime may not live long enough
+  --> tests/ui/extendable_model_escapes_the_callback.rs:19:9
+   |
+15 | impl<'a> SolveEventHandler for Escape<'a> {
+   |      -- lifetime `'a` defined here
+16 |     fn on_model(&mut self, model: &mut ExtendableModel<'_>) -> Result<ControlFlow<()>> {
+   |                            ----- has type `&mut ExtendableModel<'1>`
+...
+19 |         *self.slot = Some(model);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^ assignment requires that `'1` must outlive `'a`
+   |
+   = note: requirement occurs because of a mutable reference to `ExtendableModel<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error: lifetime may not live long enough
+  --> tests/ui/extendable_model_escapes_the_callback.rs:19:27
+   |
+15 | impl<'a> SolveEventHandler for Escape<'a> {
+   |      -- lifetime `'a` defined here
+16 |     fn on_model(&mut self, model: &mut ExtendableModel<'_>) -> Result<ControlFlow<()>> {
+   |                            ----- has type `&mut ExtendableModel<'1>`
+...
+19 |         *self.slot = Some(model);
+   |                           ^^^^^ this usage requires that `'a` must outlive `'1`
+   |
+   = note: requirement occurs because of a mutable reference to `ExtendableModel<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

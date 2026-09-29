@@ -1,0 +1,25 @@
+[package]
+name = "systest"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+autobins = false
+autolib = false
+
+[dependencies]
+clingox-sys = { version = "508.2.0-alpha.0", path = "../clingox-sys" }
+
+[build-dependencies]
+ctest = "0.5.1"
+
+# ctest generates a `main` that runs every check and panics on a mismatch.
+[[test]]
+name = "systest"
+harness = false
+
+# No workspace lints: this crate's only test is the ABI check that ctest
+# generates, and the lint set is for code we write. The generated file is
+# checked by comparing it with clingo.h, not by style.

@@ -1,0 +1,13 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_thread_local.rs:18:74
+   |
+17 |         .main(|ctl, _files| {
+   |                ---
+   |                |
+   |                `ctl` is a reference that is only valid in the closure body
+   |                has type `&mut ScopedControl<'1>`
+18 |             STASH.with(|s| *s.borrow_mut() = Some(std::mem::replace(ctl, Control::new().unwrap())));
+   |                                                                          ^^^^^^^^^^^^^^^^^^^^^^^
+   |                                                                          |
+   |                                                                          `ctl` escapes the closure body here
+   |                                                                          argument requires that `'1` must outlive `'static`

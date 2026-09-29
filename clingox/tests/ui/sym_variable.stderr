@@ -1,0 +1,5 @@
+error: `X` is a variable in clingo, and a symbol is a ground term without variables; write a lowercase name, or splice a value with `{expr}`
+ --> tests/ui/sym_variable.rs:6:29
+  |
+6 |     let _ = clingox::sym!(p(X));
+  |                             ^

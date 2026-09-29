@@ -1,0 +1,10 @@
+error[E0621]: explicit lifetime required in the type of `init`
+  --> tests/ui/propagate_init_assignment_escapes.rs:42:5
+   |
+42 |     init.assignment()
+   |     ^^^^^^^^^^^^^^^^^ lifetime `'a` required
+   |
+help: add explicit lifetime `'a` to the type of `init`
+   |
+41 | fn steal<'a>(init: &'a PropagateInit<'a>) -> Assignment<'a> {
+   |                     ++

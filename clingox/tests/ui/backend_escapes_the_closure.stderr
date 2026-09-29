@@ -1,0 +1,23 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/backend_escapes_the_closure.rs:14:9
+   |
+12 |     let mut kept = None;
+   |         -------- `kept` declared here, outside of the closure body
+13 |     ctl.with_backend(|backend| {
+   |                       ------- `backend` is a reference that is only valid in the closure body
+14 |         kept = Some(backend);
+   |         ^^^^^^^^^^^^^^^^^^^^ `backend` escapes the closure body here
+
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/backend_escapes_the_closure.rs:14:9
+   |
+12 |     let mut kept = None;
+   |         -------- `kept` declared here, outside of the closure body
+13 |     ctl.with_backend(|backend| {
+   |                       ------- `backend` is a reference that is only valid in the closure body
+14 |         kept = Some(backend);
+   |         ^^^^^^^^^^^^^^^^^^^^ `backend` escapes the closure body here
+   |
+   = note: requirement occurs because of a mutable reference to `Backend<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

@@ -1,0 +1,13 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_printer_stash_printer.rs:22:9
+   |
+20 |     let keep: Slot<&mut DefaultPrinter<'static>> = Slot(Cell::new(None));
+   |         ---- `keep` declared here, outside of the closure body
+21 |     let _ = Application::new().print_model(|_model, printer| {
+   |                                                     ------- `printer` is a reference that is only valid in the closure body
+22 |         keep.set(printer);
+   |         ^^^^^^^^^^^^^^^^^ `printer` escapes the closure body here
+   |
+   = note: requirement occurs because of the type `Slot<&mut DefaultPrinter<'_>>`, which makes the generic argument `&mut DefaultPrinter<'_>` invariant
+   = note: the struct `Slot<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:,">
+<title>clingox test executable</title>
+</head>
+<body>
+<script>
+  // run.mjs installs xtaskReport before this page loads. Every outcome goes
+  // through it, and the runner treats anything but an exit event with status 0
+  // as a failure, so a path this page does not foresee cannot pass silently.
+  const report = (kind, data) => window.xtaskReport(kind, String(data));
+  // Same format as run.mjs uses for Playwright's pageerror event, so the one
+  // exception both of them see is reported once.
+  const describe = (e) => (e instanceof Error ? `${e.name}: ${e.message}` : String(e));
+
+  addEventListener('error', (event) => {
+    report('error', event.error === undefined ? event.message : describe(event.error));
+  });
+  addEventListener('unhandledrejection', (event) => report('error', describe(event.reason)));
+
+  const params = new URLSearchParams(location.search);
+  var Module = {
+    // The test executable's command line, such as `--skip <name>`.
+    arguments: params.getAll('arg'),
+    print: (text) => report('stdout', text),
+    printErr: (text) => report('stderr', text),
+    onAbort: (what) => report('abort', what),
+    postRun: [() => {
+      // The default build keeps the runtime alive after main, so onExit never
+      // fires. postRun runs after main returns or calls exit(), and by then the
+      // generated script's EXITSTATUS global holds the status. If a future
+      // emscripten renames it, the report is "unknown" and the run fails.
+      report('exit', typeof EXITSTATUS === 'number' ? EXITSTATUS : 'unknown');
+    }],
+  };
+
+  const exe = params.get('exe');
+  const script = document.createElement('script');
+  // The runner serves each executable from its own directory, so the .wasm
+  // next to it resolves relative to the script.
+  script.src = 'exe/' + exe;
+  script.onerror = () => report('error', `cannot load exe/${exe}`);
+  document.body.append(script);
+</script>
+</body>
+</html>

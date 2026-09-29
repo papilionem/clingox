@@ -1,0 +1,9 @@
+error[E0639]: cannot create non-exhaustive struct using struct expression
+  --> tests/ui/grounding_limit_built_with_a_struct_literal.rs:11:13
+   |
+11 |       let _ = GroundingLimit {
+   |  _____________^
+12 | |         max_atoms: None,
+13 | |         max_rules: None,
+14 | |     };
+   | |_____^

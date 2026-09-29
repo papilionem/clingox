@@ -1,0 +1,25 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_keep_reference.rs:15:13
+   |
+12 |     let mut keep: Option<&mut Control> = None;
+   |         -------- `keep` declared here, outside of the closure body
+13 |     Application::new()
+14 |         .main(|ctl, _files| {
+   |                --- `ctl` is a reference that is only valid in the closure body
+15 |             keep = Some(ctl);
+   |             ^^^^^^^^^^^^^^^^ `ctl` escapes the closure body here
+
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_keep_reference.rs:15:13
+   |
+12 |     let mut keep: Option<&mut Control> = None;
+   |         -------- `keep` declared here, outside of the closure body
+13 |     Application::new()
+14 |         .main(|ctl, _files| {
+   |                --- `ctl` is a reference that is only valid in the closure body
+15 |             keep = Some(ctl);
+   |             ^^^^^^^^^^^^^^^^ `ctl` escapes the closure body here
+   |
+   = note: requirement occurs because of a mutable reference to `ScopedControl<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

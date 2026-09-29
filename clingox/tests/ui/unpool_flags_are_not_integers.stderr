@@ -1,0 +1,13 @@
+error[E0308]: mismatched types
+  --> tests/ui/unpool_flags_are_not_integers.rs:10:25
+   |
+10 |             node.unpool(3, |_| Ok(()))?;
+   |                  ------ ^ expected `Unpool`, found integer
+   |                  |
+   |                  arguments to this method are incorrect
+   |
+note: method defined here
+  --> src/ast/unpool.rs
+   |
+   |     pub fn unpool(&self, what: Unpool, mut f: impl FnMut(Ast) -> Result<()>) -> Result<()> {
+   |            ^^^^^^

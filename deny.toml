@@ -1,0 +1,38 @@
+# cargo-deny policy (RULES 7): licenses compatible with MIT OR Apache-2.0, no
+# known advisories, no duplicate versions without a stated reason.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Every license here is permissive and compatible with MIT OR Apache-2.0.
+# BSD-3-Clause (bindgen) and ISC (libloading) reach only the xtask host tool.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+]
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+# Path dependencies inside the workspace carry no registry version to pin.
+allow-wildcard-paths = true
+skip = [
+    # ctest (systest, host only) uses syn 3 while bindgen and serde_derive still
+    # use syn 2. Both are build-time tools; nothing ships either copy.
+    { crate = "syn@2", reason = "ctest moved to syn 3 before bindgen and serde did" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

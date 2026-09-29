@@ -1,0 +1,10 @@
+{
+  "name": "clingox-browser-tests",
+  "description": "Runs the wasm32-unknown-emscripten test executables in headless browsers",
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

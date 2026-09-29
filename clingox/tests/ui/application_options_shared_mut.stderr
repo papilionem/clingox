@@ -1,0 +1,15 @@
+error[E0502]: cannot borrow `seen` as immutable because it is also borrowed as mutable
+  --> tests/ui/application_options_shared_mut.rs:19:27
+   |
+13 |         .register_options(|options| {
+   |                           --------- mutable borrow occurs here
+14 |             options.add(OptionSpec::new("Group", "value", "a value"), |value| {
+15 |                 seen.push(value.to_owned());
+   |                 ---- first borrow occurs due to use of `seen` in closure
+...
+19 |         .validate_options(|| {
+   |          ---------------- ^^ immutable borrow occurs here
+   |          |
+   |          mutable borrow later used by call
+20 |             assert!(seen.len() < 5);
+   |                     ---- second borrow occurs due to use of `seen` in closure

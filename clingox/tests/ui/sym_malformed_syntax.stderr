@@ -1,0 +1,5 @@
+error: expected `,` or `)`, found `2`
+ --> tests/ui/sym_malformed_syntax.rs:6:31
+  |
+6 |     let _ = clingox::sym!(p(1 2));
+  |                               ^

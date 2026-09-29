@@ -1,0 +1,17 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_replace_stash.rs:15:49
+   |
+14 |         .main(|ctl, _files| {
+   |                ---
+   |                |
+   |                `ctl` is a reference that is only valid in the closure body
+   |                has type `&mut ScopedControl<'1>`
+15 |             stash = Some(std::mem::replace(ctl, Control::new()?));
+   |                                                 ^^^^^^^^^^^^^^^
+   |                                                 |
+   |                                                 `ctl` escapes the closure body here
+   |                                                 assignment requires that `'1` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `ScopedControl<'_>`, which makes the generic argument `'_` invariant
+   = note: the struct `ScopedControl<'r>` is invariant over the parameter `'r`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

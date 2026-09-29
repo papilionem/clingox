@@ -1,0 +1,7 @@
+error: `sym!` needs one term, such as `sym!(p(1, "x"))`
+ --> tests/ui/sym_empty.rs:5:13
+  |
+5 |     let _ = clingox::sym!();
+  |             ^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the macro `clingox::sym` (in Nightly builds, run with -Z macro-backtrace for more info)

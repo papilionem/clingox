@@ -1,0 +1,107 @@
+Fix for clingox UPSTREAM-ISSUES U1: integer division traps abort the process.
+
+gringo evaluates INT_MIN / -1 and INT_MIN \ -1 without a check, and the ground
+term parser (clingo_parse_term) does not check \ for a zero divisor. On x86
+these raise SIGFPE and kill the process, so any program or term text can abort
+an application that embeds clingo. With this patch the three places that
+evaluate a division treat these cases as undefined, like a division by zero:
+the term parser fails with "parsing failed", and the grounder logs "operation
+undefined" and drops the rule instance.
+
+The grounder also divides when it matches a linear term such as -X+0 against a
+value (LinearTerm::match and GLinearTerm::match): solving -1 * X = INT_MIN
+traps the same way. There the patch reports no match, since no int X solves it.
+
+Divisions that do not trap on x86 keep their values. On targets where
+INT_MIN / -1 does not trap (AArch64 returns INT_MIN, and 0 for the remainder),
+those results were undefined behaviour in C++ and are now undefined in gringo
+too. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libgringo/gringo/term.hh b/libgringo/gringo/term.hh
+index b811f04..6e9abbe 100644
+--- a/libgringo/gringo/term.hh
++++ b/libgringo/gringo/term.hh
+@@ -52,6 +52,7 @@ enum class UnOp : int { NEG, NOT, ABS };
+ 
+ int eval(UnOp op, int x);
+ int eval(BinOp op, int x, int y);
++bool isUndefined(BinOp op, int x, int y);
+ 
+ std::ostream &operator<<(std::ostream &out, BinOp op);
+ std::ostream &operator<<(std::ostream &out, UnOp op);
+diff --git a/libgringo/src/input/groundtermparser.cc b/libgringo/src/input/groundtermparser.cc
+index ae6667a..bf6a742 100644
+--- a/libgringo/src/input/groundtermparser.cc
++++ b/libgringo/src/input/groundtermparser.cc
+@@ -42,7 +42,7 @@ Symbol GroundTermParser::parse(std::string const &str, Logger &log) {
+ }
+ 
+ Symbol GroundTermParser::term(BinOp op, Symbol a, Symbol b) {
+-    if (a.type() == SymbolType::Num && b.type() == SymbolType::Num && (op != BinOp::DIV || b.num() != 0)) {
++    if (a.type() == SymbolType::Num && b.type() == SymbolType::Num && !Gringo::isUndefined(op, a.num(), b.num())) {
+         return Symbol::createNum(Gringo::eval(op, a.num(), b.num()));
+     }
+     undefined_ = true;
+diff --git a/libgringo/src/term.cc b/libgringo/src/term.cc
+index 3f81109..ccc54fe 100644
+--- a/libgringo/src/term.cc
++++ b/libgringo/src/term.cc
+@@ -24,6 +24,7 @@
+ 
+ #include <cmath>
+ #include <cstddef>
++#include <limits>
+ 
+ #include <math/wide_integer/uintwide_t.h>
+ 
+@@ -651,7 +652,8 @@ bool GLinearTerm::match(Symbol const &x) {
+     }
+     int y = x.num();
+     y -= n_;
+-    if (y % m_ != 0) {
++    // INT_MIN = -1 * y has no int solution, and computing it traps (U1).
++    if (isUndefined(BinOp::MOD, y, m_) || y % m_ != 0) {
+         return false;
+     }
+     y /= m_;
+@@ -862,6 +864,12 @@ int eval(BinOp op, int x, int y) {
+     return 0;
+ }
+ 
++// Division and modulo by zero are undefined, and so are INT_MIN / -1 and
++// INT_MIN % -1, which overflow and trap on x86.
++bool isUndefined(BinOp op, int x, int y) {
++    return (op == BinOp::DIV || op == BinOp::MOD) && (y == 0 || (y == -1 && x == std::numeric_limits<int>::min()));
++}
++
+ int Term::toNum(bool &undefined, Logger &log) {
+     bool undefined_arg = false;
+     Symbol y(eval(undefined_arg, log));
+@@ -1682,7 +1690,8 @@ bool LinearTerm::match(Symbol const &val) const {
+     if (val.type() == SymbolType::Num) {
+         assert(m_ != 0);
+         int c(val.num() - n_);
+-        if (c % m_ == 0) {
++        // INT_MIN = -1 * X has no int solution, and computing it traps (U1).
++        if (!isUndefined(BinOp::MOD, c, m_) && c % m_ == 0) {
+             return var_->match(Symbol::createNum(c / m_));
+         }
+     }
+@@ -2028,7 +2037,7 @@ Term::SimplifyRet BinOpTerm::simplify(SimplifyState &state, bool positional, boo
+     } else if (retLeft.type() == SimplifyRet::CONSTANT && retRight.type() == SimplifyRet::CONSTANT) {
+         auto left = retLeft.value().num();
+         auto right = retRight.value().num();
+-        if (op_ == BinOp::POW && left == 0 && right < 0) {
++        if ((op_ == BinOp::POW && left == 0 && right < 0) || isUndefined(op_, left, right)) {
+             GRINGO_REPORT(log, Warnings::OperationUndefined) << loc() << ": info: operation undefined:\n"
+                                                              << "  " << *this << "\n";
+             return {};
+@@ -2096,7 +2105,7 @@ Symbol BinOpTerm::eval(bool &undefined, Logger &log) const {
+     Symbol l(left_->eval(undefined_arg, log));
+     Symbol r(right_->eval(undefined_arg, log));
+     bool defined = l.type() == SymbolType::Num && r.type() == SymbolType::Num &&
+-                   ((op_ != BinOp::DIV && op_ != BinOp::MOD) || r.num() != 0) &&
++                   !isUndefined(op_, l.num(), r.num()) &&
+                    (op_ != BinOp::POW || l.num() != 0 || r.num() >= 0);
+     if (defined) {
+         undefined = undefined || undefined_arg;

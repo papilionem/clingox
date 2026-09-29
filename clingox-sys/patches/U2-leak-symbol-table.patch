@@ -1,0 +1,43 @@
+Fix for clingox UPSTREAM-ISSUES U2: the symbol table is destroyed at process exit.
+
+The global symbol table is a static with a destructor. When main returns, the
+static destructors run while other threads may still create or read symbols,
+which then use freed memory: names and strings borrowed from symbols become
+corrupted, and creating a symbol inserts into a destroyed table. With this
+patch the table is allocated once and never destroyed, so symbols stay valid
+until the process has ended. It stays reachable from a static, so leak
+checkers do not report it. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libgringo/src/symbol.cc b/libgringo/src/symbol.cc
+index 868d40d..4fcb8a2 100644
+--- a/libgringo/src/symbol.cc
++++ b/libgringo/src/symbol.cc
+@@ -95,8 +95,8 @@ template <class T> struct UniqueConstruct {
+     template <class U> static auto construct(U &&x) {
+         size_t hash = typename T::Hash{}(x);
+         size_t shard = hash % num_shards;
+-        auto &set = arr_[shard].first;
+-        auto &mut = arr_[shard].second;
++        auto &set = arr()[shard].first;
++        auto &mut = arr()[shard].second;
+         {
+             auto lock = std::shared_lock<SharedMutex>{mut};
+             auto it = set.find(x, hash);
+@@ -112,11 +112,14 @@ template <class T> struct UniqueConstruct {
+     }
+ 
+   private:
+-    static Arr arr_;
++    // Never destroyed, so that symbols stay valid while static destructors
++    // run at exit and other threads still use them.
++    static Arr &arr() {
++        static Arr &arr = *new Arr; // NOLINT
++        return arr;
++    }
+ };
+ 
+-template <class T> typename UniqueConstruct<T>::Arr UniqueConstruct<T>::arr_; // NOLINT
+-
+ template <class T, class U> auto construct_unique(U &&x) { return UniqueConstruct<T>::construct(std::forward<U>(x)); }
+ 
+ // {{{1 definition of USig

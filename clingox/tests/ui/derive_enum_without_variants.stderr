@@ -1,0 +1,5 @@
+error: an enum without variants has no values to convert
+ --> tests/ui/derive_enum_without_variants.rs:8:6
+  |
+8 | enum Never {}
+  |      ^^^^^

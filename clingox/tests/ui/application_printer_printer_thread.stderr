@@ -1,0 +1,83 @@
+error[E0277]: `*mut c_void` cannot be sent between threads safely
+  --> tests/ui/application_printer_printer_thread.rs:9:25
+   |
+ 9 |               scope.spawn(|| {
+   |                     ----- ^-
+   |                     |     |
+   |  ___________________|_____within this `{closure@$DIR/tests/ui/application_printer_printer_thread.rs:9:25: 9:27}`
+   | |                   |
+   | |                   required by a bound introduced by this call
+10 | |                 let _ = printer.print();
+11 | |             });
+   | |_____________^ `*mut c_void` cannot be sent between threads safely
+   |
+   = help: within `{closure@$DIR/tests/ui/application_printer_printer_thread.rs:9:25: 9:27}`, the trait `Send` is not implemented for `*mut c_void`
+note: required because it appears within the type `clingox::raw::application::PrinterHandle<'_>`
+  --> src/raw/application.rs
+   |
+   | pub(crate) struct PrinterHandle<'p> {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `DefaultPrinter<'_>`
+  --> src/application/printer.rs
+   |
+   | pub struct DefaultPrinter<'p>(PrinterHandle<'p>);
+   |            ^^^^^^^^^^^^^^
+   = note: required because it appears within the type `&mut DefaultPrinter<'_>`
+note: required because it's used within this closure
+  --> tests/ui/application_printer_printer_thread.rs:9:25
+   |
+ 9 |             scope.spawn(|| {
+   |                         ^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `*mut u8` cannot be sent between threads safely
+  --> tests/ui/application_printer_printer_thread.rs:9:25
+   |
+ 9 |               scope.spawn(|| {
+   |                     ----- ^-
+   |                     |     |
+   |  ___________________|_____within this `{closure@$DIR/tests/ui/application_printer_printer_thread.rs:9:25: 9:27}`
+   | |                   |
+   | |                   required by a bound introduced by this call
+10 | |                 let _ = printer.print();
+11 | |             });
+   | |_____________^ `*mut u8` cannot be sent between threads safely
+   |
+   = help: within `{closure@$DIR/tests/ui/application_printer_printer_thread.rs:9:25: 9:27}`, the trait `Send` is not implemented for `*mut u8`
+   = note: required because it appears within the type `(&mut (), *mut u8)`
+note: required because it appears within the type `PhantomData<(&mut (), *mut u8)>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::application::PrinterHandle<'_>`
+  --> src/raw/application.rs
+   |
+   | pub(crate) struct PrinterHandle<'p> {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `DefaultPrinter<'_>`
+  --> src/application/printer.rs
+   |
+   | pub struct DefaultPrinter<'p>(PrinterHandle<'p>);
+   |            ^^^^^^^^^^^^^^
+   = note: required because it appears within the type `&mut DefaultPrinter<'_>`
+note: required because it's used within this closure
+  --> tests/ui/application_printer_printer_thread.rs:9:25
+   |
+ 9 |             scope.spawn(|| {
+   |                         ^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`

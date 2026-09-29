@@ -1,0 +1,421 @@
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+
+use crate::setup::{browser_dir, emsdk_env};
+use crate::util::{Result, cargo, output, root, run};
+
+/// Crates whose tests run on device targets. xtask and systest are host tools:
+/// systest compiles C against the header, which needs the host toolchain.
+const TARGET_CRATES: [&str; 4] = ["-p", "clingox-sys", "-p", "clingox"];
+
+const ANDROID_TARGET: &str = "x86_64-linux-android";
+const ANDROID_ABI: &str = "x86_64";
+/// Lowest API level the tests are built for; any `x86_64` emulator image runs it.
+const ANDROID_API: &str = "24";
+const DEVICE_DIR: &str = "/data/local/tmp/clingox-tests";
+
+const WASM_TARGET: &str = "wasm32-unknown-emscripten";
+
+pub(crate) fn linux() -> Result<()> {
+    run(cargo().args(["test", "--workspace"]))
+}
+
+/// Runs the Linux, Android and WASM suites at the same time: each as its own
+/// invocation of `cargo xtask test <suite>`, so `test all` runs exactly the
+/// commands `test linux`/`test android`/`test wasm` run on their own (same
+/// tests, same flags, same failures). This is where the parallelism pays
+/// off, since the Android run is mostly waiting on the device and the WASM
+/// run never touches the host target that `test linux` builds for.
+///
+/// `sanitize` and `miri` stay their own, exclusive commands (TESTING,
+/// "Build speed"): both instrument the whole dependency tree in their own
+/// way, so running either alongside another heavy build would fight it for
+/// memory rather than overlap productively.
+///
+/// Android and WASM each get their own `CARGO_TARGET_DIR` under
+/// `target/parallel-test-all`, because Cargo takes a single lock over a
+/// whole target directory for the duration of a build; without separate
+/// directories the three suites would just serialise on that lock instead of
+/// overlapping. `test linux` keeps the default target directory. The C++
+/// side of each build stays cheap even so, because ccache (`clingox-sys`'s
+/// `build.rs`) shares object files across target directories.
+///
+/// Output is captured per suite and printed as each suite finishes, under a
+/// header naming it, so the three runs' output does not interleave.
+pub(crate) fn all() -> Result<()> {
+    let exe =
+        std::env::current_exe().map_err(|e| format!("cannot find xtask's own executable: {e}"))?;
+    let parallel_dir = root().join("target/parallel-test-all");
+
+    let suites: [(&str, &[&str], Option<PathBuf>); 3] = [
+        ("linux", &["test", "linux"], None),
+        (
+            "android",
+            &["test", "android"],
+            Some(parallel_dir.join("android")),
+        ),
+        ("wasm", &["test", "wasm"], Some(parallel_dir.join("wasm"))),
+    ];
+
+    let mut children = Vec::new();
+    for (name, args, target_dir) in &suites {
+        let mut cmd = Command::new(&exe);
+        cmd.current_dir(root())
+            .args(*args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(dir) = target_dir {
+            cmd.env("CARGO_TARGET_DIR", dir);
+        }
+        eprintln!(
+            "$ cargo xtask {} (background{})",
+            args.join(" "),
+            target_dir
+                .as_ref()
+                .map(|d| format!(", target dir {}", d.display()))
+                .unwrap_or_default()
+        );
+        let child = cmd
+            .spawn()
+            .map_err(|e| format!("cannot start `cargo xtask {}`: {e}", args.join(" ")))?;
+        children.push((*name, child));
+    }
+
+    let mut failed = Vec::new();
+    for (name, child) in children {
+        let out = child
+            .wait_with_output()
+            .map_err(|e| format!("{name}: cannot wait for it: {e}"))?;
+        eprintln!("\n===== {name} =====");
+        std::io::stdout().write_all(&out.stdout).ok();
+        std::io::stderr().write_all(&out.stderr).ok();
+        if !out.status.success() {
+            failed.push(name);
+        }
+    }
+    if failed.is_empty() {
+        eprintln!("\ntest all: linux, android and wasm all passed");
+        Ok(())
+    } else {
+        Err(format!("test all: failed: {}", failed.join(", ")).into())
+    }
+}
+
+/// The unit tests of `clingox` under Miri (RULES 2, TESTING 7).
+///
+/// Miri cannot call into C, so it runs the tests of the `unsafe` primitives
+/// and trampolines, which use fake C data; the tests that call clingo are
+/// marked `cfg_attr(miri, ignore)`.
+pub(crate) fn miri() -> Result<()> {
+    let mut cmd = Command::new("rustup");
+    cmd.current_dir(crate::util::root()).args([
+        "run", "nightly", "cargo", "miri", "test", "-p", "clingox", "--lib",
+    ]);
+    crate::util::use_ccache_if_found(&mut cmd);
+    run(&mut cmd).map_err(|e| format!("{e}; `cargo xtask setup miri` installs Miri").into())
+}
+
+pub(crate) fn android() -> Result<()> {
+    let state = output(Command::new("adb").arg("get-state")).map_err(|e| {
+        format!("no Android device is connected ({e}); start the x86_64 emulator first")
+    })?;
+    if state.trim() != "device" {
+        return Err(format!("adb reports the device as {:?}", state.trim()).into());
+    }
+    let abi = output(Command::new("adb").args(["shell", "getprop", "ro.product.cpu.abi"]))?;
+    if abi.trim() != ANDROID_ABI {
+        return Err(format!("the connected device is {}, not {ANDROID_ABI}", abi.trim()).into());
+    }
+
+    let ndk = ndk_dir()?;
+    eprintln!("using the NDK at {}", ndk.display());
+    // cargo-ndk prints none of cargo's JSON messages, so the test executables
+    // could not be found through it. The NDK's own clang wrappers carry the
+    // target and API level, which is all cargo-ndk sets up for this target.
+    let bin = ndk.join("toolchains/llvm/prebuilt/linux-x86_64/bin");
+    let clang = bin.join(format!("{ANDROID_TARGET}{ANDROID_API}-clang"));
+    let clangxx = bin.join(format!("{ANDROID_TARGET}{ANDROID_API}-clang++"));
+    if !clang.exists() {
+        return Err(format!("the NDK has no {}", clang.display()).into());
+    }
+    let target_env = ANDROID_TARGET.replace('-', "_");
+    let json = output(
+        cargo()
+            .env("ANDROID_NDK_HOME", &ndk)
+            .env("ANDROID_PLATFORM", ANDROID_API)
+            .env(
+                format!("CARGO_TARGET_{}_LINKER", target_env.to_uppercase()),
+                &clang,
+            )
+            .env(format!("CC_{target_env}"), &clang)
+            .env(format!("CXX_{target_env}"), &clangxx)
+            .env(format!("AR_{target_env}"), bin.join("llvm-ar"))
+            .args(["test", "--no-run", "--target", ANDROID_TARGET])
+            .args(["--message-format=json-render-diagnostics"])
+            .args(TARGET_CRATES)
+            .stdout(Stdio::piped()),
+    )?;
+    let binaries = test_executables(&json)?;
+    if binaries.is_empty() {
+        return Err("cargo built no Android test executables".into());
+    }
+
+    let cxx_shared = ndk
+        .join("toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib")
+        .join(ANDROID_TARGET)
+        .join("libc++_shared.so");
+    run(Command::new("adb").args(["shell", "rm", "-rf", DEVICE_DIR]))?;
+    run(Command::new("adb").args(["shell", "mkdir", "-p", DEVICE_DIR]))?;
+    run(Command::new("adb")
+        .arg("push")
+        .arg(&cxx_shared)
+        .arg(DEVICE_DIR))?;
+
+    let mut failed = Vec::new();
+    for binary in &binaries {
+        let name = binary
+            .file_name()
+            .expect("executables have file names")
+            .to_string_lossy();
+        run(Command::new("adb")
+            .arg("push")
+            .arg(binary)
+            .arg(format!("{DEVICE_DIR}/{name}")))?;
+        // `adb shell` has not always forwarded the exit status, so the script
+        // prints it and the marker is what decides.
+        let script = format!(
+            "cd {DEVICE_DIR} && chmod +x ./{name} && LD_LIBRARY_PATH={DEVICE_DIR} ./{name}; echo xtask-exit=$?"
+        );
+        eprintln!("$ adb shell {script}");
+        let out = Command::new("adb").args(["shell", &script]).output()?;
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        print!("{stdout}");
+        eprint!("{}", String::from_utf8_lossy(&out.stderr));
+        // A debug test executable is about 70 MB, and an emulator's /data is
+        // often only a few GB, so each one is removed as soon as it has run.
+        run(Command::new("adb").args(["shell", "rm", "-f", &format!("{DEVICE_DIR}/{name}")]))?;
+        if !stdout.lines().any(|l| l.trim() == "xtask-exit=0") {
+            failed.push(name.into_owned());
+        }
+    }
+    run(Command::new("adb").args(["shell", "rm", "-rf", DEVICE_DIR]))?;
+    if failed.is_empty() {
+        eprintln!("android: {} test executables passed", binaries.len());
+        Ok(())
+    } else {
+        Err(format!("android: failed: {}", failed.join(", ")).into())
+    }
+}
+
+/// Engines `--browser` accepts, in the order `--browser all` runs them.
+const BROWSERS: [&str; 3] = ["chromium", "firefox", "webkit"];
+const BROWSER_TIMEOUT_SECS: u64 = 120;
+
+pub(crate) fn wasm(options: &[&str]) -> Result<()> {
+    let (browsers, timeout) = wasm_options(options)?;
+    let mut env = emsdk_env()?;
+    // Rust's emscripten target keeps emscripten's fixed 16 MB heap, which
+    // larger programs exhaust (clingo reports bad_alloc). Applications set
+    // this themselves; the guide's platform chapter says so.
+    env.insert(
+        "CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_RUSTFLAGS".into(),
+        "-C link-arg=-sALLOW_MEMORY_GROWTH=1".into(),
+    );
+    if browsers.is_empty() {
+        for profile in [None, Some("--release")] {
+            let mut cmd = cargo();
+            cmd.envs(&env)
+                .env("CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_RUNNER", "node")
+                .args(["test", "--target", WASM_TARGET])
+                .args(TARGET_CRATES)
+                .args(profile);
+            run(&mut cmd)?;
+        }
+        return Ok(());
+    }
+
+    let dir = browser_dir();
+    if !dir.join("node_modules/playwright").exists() {
+        return Err(
+            "the browser test tooling is not installed; run `cargo xtask setup browser`".into(),
+        );
+    }
+    let mut executables = Vec::new();
+    for profile in [None, Some("--release")] {
+        let json = output(
+            cargo()
+                .envs(&env)
+                .args(["test", "--no-run", "--target", WASM_TARGET])
+                .args(["--message-format=json-render-diagnostics"])
+                .args(TARGET_CRATES)
+                .args(profile)
+                .stdout(Stdio::piped()),
+        )?;
+        executables.extend(test_executables(&json)?);
+    }
+    if executables.is_empty() {
+        return Err("cargo built no WASM test executables".into());
+    }
+
+    let result_file =
+        std::env::temp_dir().join(format!("clingox-browser-{}.json", std::process::id()));
+    let mut summary = Vec::new();
+    let mut all_passed = true;
+    for browser in browsers {
+        // A result left over from the previous engine must not stand in for
+        // this one if the runner dies before writing its own.
+        let _ = std::fs::remove_file(&result_file);
+        eprintln!("$ node xtask/browser/run.mjs --browser {browser} --timeout {timeout} ...");
+        let status = Command::new("node")
+            .arg(dir.join("run.mjs"))
+            .args(["--browser", browser, "--timeout", &timeout.to_string()])
+            .arg("--result")
+            .arg(&result_file)
+            .args(&executables)
+            .status()
+            .map_err(|e| format!("cannot start node: {e}"))?;
+        let verdict = browser_verdict(&result_file, &executables, status.success());
+        let _ = std::fs::remove_file(&result_file);
+        let total = executables.len();
+        match verdict {
+            Ok(()) => summary.push(format!("{browser}: {total} test executables, all passed")),
+            Err(err) => {
+                all_passed = false;
+                summary.push(format!(
+                    "{browser}: {total} test executables, FAILED: {err}"
+                ));
+            }
+        }
+    }
+    eprintln!();
+    for line in &summary {
+        eprintln!("{line}");
+    }
+    if all_passed {
+        Ok(())
+    } else {
+        Err("the WASM tests failed in at least one browser".into())
+    }
+}
+
+/// Parses `[--browser <engine>|all] [--timeout <seconds>]`. No `--browser`
+/// means the Node.js run.
+fn wasm_options(options: &[&str]) -> Result<(Vec<&'static str>, u64)> {
+    let mut browsers = Vec::new();
+    let mut timeout = None;
+    let mut rest = options.iter();
+    while let Some(option) = rest.next() {
+        match *option {
+            "--browser" => {
+                let value = rest.next().ok_or("--browser needs an engine")?;
+                browsers = match *value {
+                    "all" => BROWSERS.to_vec(),
+                    name => vec![*BROWSERS.iter().find(|b| **b == name).ok_or_else(|| {
+                        format!("unknown browser {name:?}; use chromium, firefox, webkit or all")
+                    })?],
+                };
+            }
+            "--timeout" => {
+                let value = rest.next().ok_or("--timeout needs a number of seconds")?;
+                let secs: u64 = value
+                    .parse()
+                    .map_err(|_| format!("--timeout {value:?} is not a number of seconds"))?;
+                if secs == 0 {
+                    return Err("--timeout must be at least 1 second".into());
+                }
+                timeout = Some(secs);
+            }
+            other => return Err(format!("unknown option {other:?} for `test wasm`").into()),
+        }
+    }
+    if timeout.is_some() && browsers.is_empty() {
+        return Err("--timeout applies only to --browser runs".into());
+    }
+    Ok((browsers, timeout.unwrap_or(BROWSER_TIMEOUT_SECS)))
+}
+
+/// Checks the runner's result file and exit status against the executables it
+/// was given. A pass needs both to agree and every executable to be listed as
+/// passed, so a runner that exits 0 early, or skips one, still fails.
+fn browser_verdict(result_file: &Path, executables: &[PathBuf], exited_ok: bool) -> Result<()> {
+    let text = std::fs::read_to_string(result_file)
+        .map_err(|_| "the runner exited without writing a result")?;
+    let result: serde_json::Value = serde_json::from_str(&text)?;
+    if result["launchError"].is_string() {
+        return Err(
+            "none ran, Playwright cannot launch this browser here (its message is above)".into(),
+        );
+    }
+    let failed = result["failed"].as_array().map_or(0, Vec::len);
+    if failed > 0 {
+        return Err(format!("{failed} failed").into());
+    }
+    let passed: Vec<&str> = result["passed"]
+        .as_array()
+        .map(|list| list.iter().filter_map(|p| p.as_str()).collect())
+        .unwrap_or_default();
+    let every_one_passed = passed.len() == executables.len()
+        && executables
+            .iter()
+            .all(|exe| passed.iter().any(|p| Path::new(p) == exe));
+    if !exited_ok || !every_one_passed {
+        return Err(format!(
+            "the runner reported {} of {} as passed and exited {}",
+            passed.len(),
+            executables.len(),
+            if exited_ok {
+                "successfully"
+            } else {
+                "with an error"
+            },
+        )
+        .into());
+    }
+    Ok(())
+}
+
+/// The test executables listed in cargo's JSON messages.
+fn test_executables(json: &str) -> Result<Vec<PathBuf>> {
+    let mut found = Vec::new();
+    for line in json.lines().filter(|l| l.starts_with('{')) {
+        let message: serde_json::Value = serde_json::from_str(line)?;
+        let is_test = message["profile"]["test"].as_bool() == Some(true);
+        if message["reason"] == "compiler-artifact"
+            && is_test
+            && let Some(exe) = message["executable"].as_str()
+        {
+            found.push(PathBuf::from(exe));
+        }
+    }
+    Ok(found)
+}
+
+/// The NDK to use: the one named by the usual variables, otherwise the newest
+/// one installed in the SDK.
+fn ndk_dir() -> Result<PathBuf> {
+    for var in ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT"] {
+        if let Some(dir) = std::env::var_os(var) {
+            return Ok(PathBuf::from(dir));
+        }
+    }
+    let sdk = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
+        .iter()
+        .find_map(std::env::var_os)
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| Path::new(&h).join("Android/Sdk")))
+        .ok_or("cannot find the Android SDK; set ANDROID_HOME")?;
+    let mut versions: Vec<(Vec<u64>, PathBuf)> = std::fs::read_dir(sdk.join("ndk"))?
+        .filter_map(std::result::Result::ok)
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let version: Option<Vec<u64>> = name.split('.').map(|p| p.parse().ok()).collect();
+            Some((version?, entry.path()))
+        })
+        .collect();
+    versions.sort();
+    versions
+        .pop()
+        .map(|(_, path)| path)
+        .ok_or_else(|| format!("no NDK under {}", sdk.join("ndk").display()).into())
+}

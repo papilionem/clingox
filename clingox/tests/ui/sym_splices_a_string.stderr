@@ -1,0 +1,23 @@
+error[E0277]: `std::string::String` has no clingo form: it does not implement `ToSymbol`
+ --> tests/ui/sym_splices_a_string.rs:9:29
+  |
+9 |     let _ = clingox::sym!(p({ name }));
+  |                             ^^^^^^^^ `std::string::String` cannot be converted to a clingo symbol
+  |
+  = help: the trait `ToSymbol` is not implemented for `std::string::String`
+  = note: derive `ToSymbol` for your own types; for text, mark a `String` field `#[clingo(string)]` or `#[clingo(constant)]`, or build the symbol with `Symbol::string` or `Symbol::function`
+  = help: the following other types implement trait `ToSymbol`:
+            &T
+            ()
+            (A, B)
+            (A, B, C)
+            (A, B, C, D)
+            (A, B, C, D, E)
+            (A, B, C, D, E, F)
+            (A, B, C, D, E, F, G)
+          and $N others
+note: required by a bound in `clingox::__private::to_symbol`
+ --> src/private.rs
+  |
+  | pub fn to_symbol<T: ToSymbol + ?Sized>(value: &T) -> Result<Symbol> {
+  |                     ^^^^^^^^ required by this bound in `to_symbol`

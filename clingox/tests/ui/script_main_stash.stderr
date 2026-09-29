@@ -1,0 +1,11 @@
+error: lifetime may not live long enough
+  --> tests/ui/script_main_stash.rs:24:48
+   |
+23 |     fn main(&self, control: &mut clingox::ScopedControl<'_>) -> Result<()> {
+   |                    ------- has type `&mut ScopedControl<'1>`
+24 |         let owned = std::mem::replace(control, Control::new()?);
+   |                                                ^^^^^^^^^^^^^^^ assignment requires that `'1` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `ScopedControl<'_>`, which makes the generic argument `'_` invariant
+   = note: the struct `ScopedControl<'r>` is invariant over the parameter `'r`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

@@ -1,0 +1,22 @@
+error: the `String` field `object` must say what it is in clingo: `#[clingo(string)]` for a string such as "comp13", or `#[clingo(constant)]` for a constant such as comp13; the two never match each other in rules
+  --> tests/ui/derive_string_field_without_kind.rs:11:5
+   |
+11 |     object: String,
+   |     ^^^^^^
+
+error[E0599]: no method named `to_symbol` found for struct `Asserted` in the current scope
+  --> tests/ui/derive_string_field_without_kind.rs:16:58
+   |
+10 | struct Asserted {
+   | --------------- method `to_symbol` not found for this struct
+...
+16 |     let _ = Asserted { object: String::new(), value: 0 }.to_symbol();
+   |                                                          ^^^^^^^^^ method not found in `Asserted`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `to_symbol`, perhaps you need to implement it:
+           candidate #1: `ToSymbol`
+help: one of the expressions' fields has a method of the same name
+   |
+16 |     let _ = Asserted { object: String::new(), value: 0 }.value.to_symbol();
+   |                                                          ++++++

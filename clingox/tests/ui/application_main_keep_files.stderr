@@ -1,0 +1,10 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_keep_files.rs:14:13
+   |
+11 |     let mut keep: Option<&[&str]> = None;
+   |         -------- `keep` declared here, outside of the closure body
+12 |     Application::new()
+13 |         .main(|_ctl, files| {
+   |                      ----- `files` is a reference that is only valid in the closure body
+14 |             keep = Some(files);
+   |             ^^^^^^^^^^^^^^^^^^ `files` escapes the closure body here

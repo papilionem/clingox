@@ -1,0 +1,15 @@
+error[E0597]: `local` does not live long enough
+  --> tests/ui/application_options_dies_early.rs:16:17
+   |
+13 |         let local = Cell::new(0);
+   |             ----- binding `local` declared here
+14 |         application = Application::new().register_options(|options| {
+   |                                                           --------- value captured here
+15 |             options.add(OptionSpec::new("Group", "value", "a value"), |_| {
+16 |                 local.set(1);
+   |                 ^^^^^ borrowed value does not live long enough
+...
+20 |     }
+   |     - `local` dropped here while still borrowed
+21 |     let _ = application.run(["--outf=3"]);
+   |             ----------- borrow later used here

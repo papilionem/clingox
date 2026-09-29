@@ -1,0 +1,23 @@
+Fix for clingox UPSTREAM-ISSUES U50: a parallel search in splitting mode leaks
+the guiding paths that were split off but never taken when the search stops.
+
+ParallelHandler::handleSplitMessage allocates a guiding path and hands it to
+SharedData::pushWork, whose queue owns it until a thread takes it in
+requestWork. SharedData::reset and SharedData::clearQueue delete what is left
+in the queue, but reset runs only when the next search begins and SharedData
+has no destructor. When the search is interrupted or terminates between the
+push and the pop, the ParallelSolve that owns the SharedData is destroyed with
+the path still queued, and the path and its literals are never freed. The
+destructor now empties the queue. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/clasp/src/parallel_solve.cpp b/clasp/src/parallel_solve.cpp
+--- a/clasp/src/parallel_solve.cpp
++++ b/clasp/src/parallel_solve.cpp
+@@ -73,6 +73,7 @@
+ 		State state;
+ 	};
+ 	SharedData() : path(0) { reset(0); control = 0; }
++	~SharedData() { clearQueue(); }
+ 	void reset(SharedContext* a_ctx) {
+ 		clearQueue();
+ 		syncT.reset();

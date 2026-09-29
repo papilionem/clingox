@@ -1,0 +1,18 @@
+error: `#[clingo(string)]` applies only to a `String` field, and `value` is not one; other types convert with their own `ToSymbol` and `FromSymbol`
+ --> tests/ui/derive_string_attribute_on_a_number.rs:9:5
+  |
+9 |     #[clingo(string)]
+  |     ^^^^^^^^^^^^^^^^^
+
+error[E0599]: no associated function or constant named `from_symbol` found for struct `Reading` in the current scope
+  --> tests/ui/derive_string_attribute_on_a_number.rs:14:22
+   |
+ 8 | struct Reading {
+   | -------------- associated function or constant `from_symbol` not found for this struct
+...
+14 |     let _ = Reading::from_symbol(clingox::Symbol::number(1));
+   |                      ^^^^^^^^^^^ associated function or constant not found in `Reading`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `from_symbol`, perhaps you need to implement it:
+           candidate #1: `FromSymbol`

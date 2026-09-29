@@ -1,0 +1,5 @@
+error: `1u8` has a type suffix; clingo numbers are plain integers within `i32`
+ --> tests/ui/sym_integer_with_a_suffix.rs:6:29
+  |
+6 |     let _ = clingox::sym!(p(1u8));
+  |                             ^^^

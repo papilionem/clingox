@@ -1,0 +1,14 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/function_call_escapes_the_callback.rs:12:9
+   |
+ 9 |     let mut kept: Vec<&[Symbol]> = Vec::new();
+   |         -------- `kept` declared here, outside of the closure body
+10 |     ctl.ground_with(&[Part::base()], |call: &mut FunctionCall<'_>| {
+   |                                       ---- `call` is a reference that is only valid in the closure body
+11 |         let pushed = call.push(Symbol::number(1));
+12 |         kept.push(call.args());
+   |         ^^^^^^^^^^^^^^^^^^^^^^ `call` escapes the closure body here
+   |
+   = note: requirement occurs because of a mutable reference to `Vec<&[clingox::Symbol]>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

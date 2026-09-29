@@ -1,0 +1,10 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_options_stash.rs:13:13
+   |
+10 |     let mut stash = None;
+   |         --------- `stash` declared here, outside of the closure body
+11 |     let _ = Application::new()
+12 |         .register_options(|options| {
+   |                            ------- `options` is a reference that is only valid in the closure body
+13 |             stash = Some(options);
+   |             ^^^^^^^^^^^^^^^^^^^^^ `options` escapes the closure body here

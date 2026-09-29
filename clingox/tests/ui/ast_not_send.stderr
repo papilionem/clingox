@@ -1,0 +1,17 @@
+error[E0277]: `NonNull<clingox_sys::bindings::clingo_ast>` cannot be sent between threads safely
+ --> tests/ui/ast_not_send.rs:9:19
+  |
+9 |     assert_send::<clingox::ast::Ast>();
+  |                   ^^^^^^^^^^^^^^^^^ `NonNull<clingox_sys::bindings::clingo_ast>` cannot be sent between threads safely
+  |
+  = help: within `clingox::ast::Ast`, the trait `Send` is not implemented for `NonNull<clingox_sys::bindings::clingo_ast>`
+note: required because it appears within the type `clingox::ast::Ast`
+ --> src/ast.rs
+  |
+  | pub struct Ast(RawAst);
+  |            ^^^
+note: required by a bound in `assert_send`
+ --> tests/ui/ast_not_send.rs:6:19
+  |
+6 | fn assert_send<T: Send>() {}
+  |                   ^^^^ required by this bound in `assert_send`

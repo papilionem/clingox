@@ -1,0 +1,11 @@
+error[E0505]: cannot move out of `handle` because it is borrowed
+  --> tests/ui/model_outlives_its_handle.rs:12:19
+   |
+10 |     let mut handle = ctl.solve_yield(&[]).unwrap();
+   |         ---------- binding `handle` declared here
+11 |     let model = handle.next_model().unwrap().unwrap();
+   |                 ------ borrow of `handle` occurs here
+12 |     let _result = handle.close();
+   |                   ^^^^^^ move out of `handle` occurs here
+13 |     println!("{}", model.number());
+   |                    ----- borrow later used here

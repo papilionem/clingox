@@ -1,0 +1,5 @@
+error: a field is either `#[clingo(string)]` or `#[clingo(constant)]`, not both
+ --> tests/ui/derive_both_text_kinds.rs:9:22
+  |
+9 |     #[clingo(string, constant)]
+  |                      ^^^^^^^^

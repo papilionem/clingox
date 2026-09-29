@@ -1,0 +1,17 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_swap_local.rs:14:29
+   |
+13 |         .main(|ctl, _files| {
+   |                ---
+   |                |
+   |                `ctl` is a reference that is only valid in the closure body
+   |                has type `&mut ScopedControl<'1>`
+14 |             let mut owned = Control::new()?;
+   |                             ^^^^^^^^^^^^^^^
+   |                             |
+   |                             `ctl` escapes the closure body here
+   |                             assignment requires that `'1` must outlive `'static`
+   |
+   = note: requirement occurs because of the type `ScopedControl<'_>`, which makes the generic argument `'_` invariant
+   = note: the struct `ScopedControl<'r>` is invariant over the parameter `'r`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

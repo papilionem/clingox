@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `handle` as mutable more than once at a time
+  --> tests/ui/model_used_after_next_model.rs:12:19
+   |
+11 |     let first = handle.next_model().unwrap().unwrap();
+   |                 ------ first mutable borrow occurs here
+12 |     let _second = handle.next_model().unwrap();
+   |                   ^^^^^^ second mutable borrow occurs here
+13 |     println!("{}", first.number());
+   |                    ----- first borrow later used here

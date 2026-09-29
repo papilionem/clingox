@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in clingox does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please reproduce the problem yourself before filing, and
+        keep the program as small as you can. If you found a crash, an abort or memory
+        corruption that safe code can cause, do not file it here: use the private
+        report described in the security policy.
+  - type: input
+    id: clingox-version
+    attributes:
+      label: clingox version
+      description: The crate version or the git commit.
+      placeholder: "508.2.0-alpha.1 or a commit hash"
+    validations:
+      required: true
+  - type: input
+    id: clingo-version
+    attributes:
+      label: clingo version, or vendored
+      description: Say "vendored" for the default build, or give the version of the system clingo you linked.
+      placeholder: "vendored (5.8.2)"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system, architecture and target
+      placeholder: "Fedora 44, x86_64, x86_64-unknown-linux-gnu"
+    validations:
+      required: true
+  - type: input
+    id: toolchain
+    attributes:
+      label: Rust toolchain
+      description: The output of `rustc --version`.
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: Minimal program
+      description: The smallest Rust program, and the logic program text if any, that shows the problem.
+      render: rust
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+      description: Include the full error message or output. If the same program behaves differently in pyclingo or the `clingo` command, say so.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I reproduced this myself and can run the program above.
+          required: true
+        - label: I searched the existing issues and `docs/dev/UPSTREAM-ISSUES.md`.
+          required: true

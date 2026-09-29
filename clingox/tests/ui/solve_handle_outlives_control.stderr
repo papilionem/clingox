@@ -1,0 +1,11 @@
+error[E0597]: `ctl` does not live long enough
+  --> tests/ui/solve_handle_outlives_control.rs:9:18
+   |
+ 8 |         let mut ctl = Control::new().unwrap();
+   |             ------- binding `ctl` declared here
+ 9 |         handle = ctl.solve_yield(&[]).unwrap();
+   |                  ^^^ borrowed value does not live long enough
+10 |     }
+   |     - `ctl` dropped here while still borrowed
+11 |     drop(handle);
+   |          ------ borrow later used here

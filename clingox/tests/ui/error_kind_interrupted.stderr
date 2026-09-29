@@ -1,0 +1,5 @@
+error[E0599]: no variant, associated function, or constant named `Interrupted` found for enum `clingox::ErrorKind` in the current scope
+ --> tests/ui/error_kind_interrupted.rs:4:33
+  |
+4 |     let _ = clingox::ErrorKind::Interrupted;
+  |                                 ^^^^^^^^^^^ variant, associated function, or constant not found in `clingox::ErrorKind`

@@ -1,0 +1,40 @@
+Fix for clingox UPSTREAM-ISSUES U47: the reference count of an AST node can wrap
+around to zero from the C API, freeing a node that handles still point to.
+
+AST::refCount_ is a 32-bit unsigned and AST::incRef is an unchecked increment.
+clingo_ast_acquire, the getters clingo_ast_attribute_get_ast,
+_get_optional_ast and _get_ast_at, and the SAST copies made when a child is
+stored in a parent all go through it. A caller that acquires a node 2^32 times
+(leaking every handle) brings the count back to zero; the next release then
+deletes the node while other handles are alive, a use after free. Like
+std::rc::Rc, the count now aborts the process instead of wrapping. Widening the
+counter alone would not help: the limit would only move. Against clingo v5.8.2;
+suitable for upstream.
+
+diff --git a/libclingo/src/astv2.cc b/libclingo/src/astv2.cc
+--- a/libclingo/src/astv2.cc
++++ b/libclingo/src/astv2.cc
+@@ -23,6 +23,8 @@
+ // }}}
+ 
+ #include <clingo/astv2.hh>
++#include <cstdlib>
++#include <limits>
+ 
+ namespace Gringo {
+ namespace Input {
+@@ -235,7 +237,13 @@
+     return true;
+ }
+ 
+-void AST::incRef() { ++refCount_; }
++void AST::incRef() {
++    if (refCount_ == std::numeric_limits<unsigned>::max()) {
++        // A wrapped count frees the node while handles still point to it.
++        std::abort();
++    }
++    ++refCount_;
++}
+ 
+ void AST::decRef() {
+     assert(refCount_ > 0);

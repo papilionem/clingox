@@ -1,0 +1,17 @@
+error[E0308]: mismatched types
+  --> tests/ui/ast_constructor_takes_ast_by_reference.rs:10:30
+   |
+10 |     let _ = ast::rule(&span, head, &[]);
+   |             ---------        ^^^^ expected `&Ast`, found `Ast`
+   |             |
+   |             arguments to this function are incorrect
+   |
+note: function defined here
+  --> src/ast/generated.rs
+   |
+   | pub fn rule(location: &Span, head: &Ast, body: &[Ast]) -> Result<Ast> {
+   |        ^^^^
+help: consider borrowing here
+   |
+10 |     let _ = ast::rule(&span, &head, &[]);
+   |                              +

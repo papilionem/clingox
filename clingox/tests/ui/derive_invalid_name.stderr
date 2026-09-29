@@ -1,0 +1,24 @@
+error: the name `Edge` is not a clingo name: clingo reads a name that starts with an uppercase letter as a variable
+ --> tests/ui/derive_invalid_name.rs:8:17
+  |
+8 | #[clingo(name = "Edge")]
+  |                 ^^^^^^
+
+error[E0599]: no method named `to_symbol` found for struct `Link` in the current scope
+  --> tests/ui/derive_invalid_name.rs:12:24
+   |
+ 9 | struct Link(i32, i32);
+   | ----------- method `to_symbol` not found for this struct
+...
+12 |     let _ = Link(1, 2).to_symbol();
+   |                        ^^^^^^^^^ method not found in `Link`
+   |
+   = help: items from traits can only be used if the trait is implemented and in scope
+   = note: the following trait defines an item `to_symbol`, perhaps you need to implement it:
+           candidate #1: `ToSymbol`
+help: some of the expressions' fields have a method of the same name
+   |
+12 |     let _ = Link(1, 2).0.to_symbol();
+   |                        ++
+12 |     let _ = Link(1, 2).1.to_symbol();
+   |                        ++

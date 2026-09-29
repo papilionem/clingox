@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `ctl` as mutable because it is also borrowed as immutable
+  --> tests/ui/symbolic_atoms_iterated_across_ground.rs:11:5
+   |
+10 |     let atoms = ctl.symbolic_atoms().unwrap().iter();
+   |                 --- immutable borrow occurs here
+11 |     ctl.ground(&[Part::base()]).unwrap();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+12 |     for atom in atoms {
+   |                 ----- immutable borrow later used here

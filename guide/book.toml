@@ -1,0 +1,9 @@
+[book]
+title = "clingox"
+description = "Rust bindings to clingo, the answer set programming system"
+authors = ["papilionem"]
+language = "en"
+
+[output.html]
+git-repository-url = "https://github.com/papilionem/clingox"
+edit-url-template = "https://github.com/papilionem/clingox/edit/main/guide/{path}"

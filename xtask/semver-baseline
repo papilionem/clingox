@@ -1,0 +1,3 @@
+# The release `cargo xtask semver` checks the public API against, and
+# `cargo xtask check` too once the tag exists. The tag marks the first alpha.
+v508.2.0-alpha.1

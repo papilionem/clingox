@@ -1,0 +1,24 @@
+error[E0499]: cannot borrow `ctl` as mutable more than once at a time
+  --> tests/ui/program_builder_nested.rs:9:5
+   |
+ 9 |       ctl.with_program_builder(|_builder| {
+   |       ^   -------------------- ---------- first mutable borrow occurs here
+   |       |   |
+   |  _____|   first borrow later used by call
+   | |
+10 | |         ctl.with_program_builder(|_inner| Ok(()))?;
+   | |         --- first borrow occurs due to use of `ctl` in closure
+11 | |         Ok(())
+12 | |     })
+   | |______^ second mutable borrow occurs here
+
+error[E0499]: cannot borrow `ctl` as mutable more than once at a time
+  --> tests/ui/program_builder_nested.rs:9:30
+   |
+ 9 |     ctl.with_program_builder(|_builder| {
+   |     --- -------------------- ^^^^^^^^^^ second mutable borrow occurs here
+   |     |   |
+   |     |   first borrow later used by call
+   |     first mutable borrow occurs here
+10 |         ctl.with_program_builder(|_inner| Ok(()))?;
+   |         --- second borrow occurs due to use of `ctl` in closure

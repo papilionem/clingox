@@ -1,0 +1,35 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_spawn_control.rs:13:13
+   |
+12 |           .main(|ctl, _files| {
+   |                  ---
+   |                  |
+   |                  `ctl` is a reference that is only valid in the closure body
+   |                  has type `&'1 mut ScopedControl<'_>`
+13 | /             std::thread::spawn(move || {
+14 | |                 ctl.add_base("a.").unwrap();
+15 | |             });
+   | |              ^
+   | |              |
+   | |______________`ctl` escapes the closure body here
+   |                argument requires that `'1` must outlive `'static`
+
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_spawn_control.rs:13:13
+   |
+12 |           .main(|ctl, _files| {
+   |                  ---
+   |                  |
+   |                  `ctl` is a reference that is only valid in the closure body
+   |                  has type `&mut ScopedControl<'2>`
+13 | /             std::thread::spawn(move || {
+14 | |                 ctl.add_base("a.").unwrap();
+15 | |             });
+   | |              ^
+   | |              |
+   | |______________`ctl` escapes the closure body here
+   |                argument requires that `'2` must outlive `'static`
+   |
+   = note: requirement occurs because of a mutable reference to `ScopedControl<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

@@ -1,0 +1,5 @@
+error: `Shape::Circle` and `Shape::Round` are both `circle/1`, so a symbol could not tell them apart; rename one with `#[clingo(name = "..")]`
+  --> tests/ui/derive_variants_with_the_same_term.rs:11:5
+   |
+11 |     Round(i32),
+   |     ^^^^^

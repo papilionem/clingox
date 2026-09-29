@@ -1,0 +1,22 @@
+error[E0277]: `Rc<Cell<u32>>` cannot be sent between threads safely
+  --> tests/ui/non_send_handler_rejected_by_solve_with_events.rs:30:56
+   |
+30 |     let _ = ctl.solve_with_events(SolveOptions::new(), handler);
+   |                 -----------------                      ^^^^^^^ `Rc<Cell<u32>>` cannot be sent between threads safely
+   |                 |
+   |                 required by a bound introduced by this call
+   |
+   = help: within `NotSend`, the trait `Send` is not implemented for `Rc<Cell<u32>>`
+note: required because it appears within the type `NotSend`
+  --> tests/ui/non_send_handler_rejected_by_solve_with_events.rs:12:8
+   |
+12 | struct NotSend {
+   |        ^^^^^^^
+note: required by a bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+  --> src/solve_events.rs
+   |
+   |     pub fn solve_with_events<H>(&mut self, options: SolveOptions, handler: H) -> Result<SolveResult>
+   |            ----------------- required by a bound in this associated function
+   |     where
+   |         H: SolveEventHandler + Send,
+   |                                ^^^^ required by this bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`

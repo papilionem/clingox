@@ -1,0 +1,42 @@
+Fix for clingox UPSTREAM-ISSUES U49: a numeric range that ends at INT_MAX never
+ends, and grounding it allocates until the process is killed.
+
+RangeBinder::next enumerates "L..U" as "current_ <= end_" followed by
+"current_++". With U equal to INT_MAX the increment overflows (undefined
+behaviour, in practice a wrap to INT_MIN), the comparison stays true and the
+range restarts, so "p(2147483646..2147483647)." grounds forever. The binder now
+finishes the range by emptying it after it has produced INT_MAX instead of
+incrementing. The other range sites in libgringo (RangeMatcher, which only
+compares, and the interval solver, which works on a wider type) are not
+affected. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libgringo/src/ground/literals.cc b/libgringo/src/ground/literals.cc
+--- a/libgringo/src/ground/literals.cc
++++ b/libgringo/src/ground/literals.cc
+@@ -28,6 +28,7 @@
+ #include "gringo/logger.hh"
+ #include <cmath>
+ #include <cstring>
++#include <limits>
+ 
+ namespace Gringo {
+ namespace Ground {
+@@ -63,7 +64,17 @@
+     bool next() override {
+         // Note: if assign does not match it is not a variable and will not match at all
+         //       if assign is just a number, then this is handled in the corresponding Binder
+-        return current_ <= end_ && assign_->match(Symbol::createNum(current_++));
++        if (current_ > end_) {
++            return false;
++        }
++        int value = current_;
++        if (value == std::numeric_limits<int>::max()) {
++            // Incrementing past INT_MAX would wrap and never end the range.
++            end_ = std::numeric_limits<int>::min();
++        } else {
++            ++current_;
++        }
++        return assign_->match(Symbol::createNum(value));
+     }
+ 
+     void print(std::ostream &out) const override { out << *assign_ << "=" << *range_.first << ".." << *range_.second; }

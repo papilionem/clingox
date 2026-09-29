@@ -1,0 +1,110 @@
+Fix for clingox UPSTREAM-ISSUES U19: clasp's registry of statistic types is
+not thread-safe.
+
+StatisticObject::registerType appends to the global vector types_s without a
+lock. Types register lazily, from function-local statics, one per template
+instance, so two threads that first use two different kinds of statistics
+append at once, and tid() on a third thread reads the vector while it may be
+reallocating: a data race and a possible use-after-free. With this patch the
+registry is a fixed array of 1024 entries (clasp has a few dozen types; ids
+are 16 bits), registerType takes a mutex in threaded builds and aborts with a
+message on overflow, and tid() reads a slot without a lock. That is sound
+because a reader only holds ids returned after their slot was written, and the
+thread-safe initialization of the statics that hold them orders the write
+before the read.
+
+One might ask whether the `#if CLASP_HAS_THREADS` guard around the
+mutex could be dropped, since clingo 5.8 requires C++11 where it is used.
+Checked against clingox-sys/build.rs and clasp/CMakeLists.txt: with the
+`threads` feature off, CLASP_BUILD_WITH_THREADS is OFF, and clasp's own
+CMakeLists.txt then sets CMAKE_CXX_STANDARD to 98 for clasp's own targets,
+which clingox-sys's build does not override. Verified on this host: a
+threads-off build of clingox-sys compiles clasp/src/statistics.cpp with
+-std=gnu++98, and <mutex> does not compile under that standard with this
+toolchain. The guard therefore stays; registerType keeps the pre-patch race in
+that one configuration, which UPSTREAM-ISSUES U19 and the guide's known issues
+now say explicitly. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/clasp/clasp/statistics.h b/clasp/clasp/statistics.h
+index 970c2ce..596b4c0 100644
+--- a/clasp/clasp/statistics.h
++++ b/clasp/clasp/statistics.h
+@@ -147,10 +147,7 @@ private:
+ 		StatisticObject(*at)(ObjPtr, const char*);
+ 		const char* (*key)(ObjPtr, uint32);
+ 	};
+-	static uint32 registerType(const I* vtab) {
+-		types_s.push_back(vtab);
+-		return static_cast<uint32>(types_s.size() - 1);
+-	}
++	static uint32 registerType(const I* vtab);
+ 	template <class T, double(*f)(const T*)>
+ 	static uint32 registerValue();
+ 	template <class T>
+@@ -159,10 +156,11 @@ private:
+ 	static uint32 registerArray();
+ 	StatisticObject(const void* obj, uint32 type);
+
+-	typedef PodVector<const I*>::type RegVec;
++	// Fixed, so that registering a type never moves entries others read.
++	enum { max_types = 1024 };
+ 	const I*    tid()  const;
+-	static I      empty_s;
+-	static RegVec types_s;
++	static I        empty_s;
++	static const I* types_s[max_types];
+ 	uint64 handle_;
+ };
+
+diff --git a/clasp/src/statistics.cpp b/clasp/src/statistics.cpp
+index 577a80f..8e3c345 100644
+--- a/clasp/src/statistics.cpp
++++ b/clasp/src/statistics.cpp
+@@ -30,6 +30,13 @@
+ #include POTASSCO_EXT_INCLUDE(unordered_set)
+ #include <stdexcept>
+ #include <cstring>
++#include <cstdio>
++#include <cstdlib>
++#if CLASP_HAS_THREADS
++// Kept: with `threads` off this builds under -std=gnu++98 (clasp's own
++// CMakeLists.txt), where <mutex> does not compile (U19).
++#include <clasp/mt/mutex.h>
++#endif
+ #ifdef _MSC_VER
+ #pragma warning (disable : 4996)
+ #endif
+@@ -38,7 +45,21 @@ namespace Clasp {
+ // StatisticObject
+ /////////////////////////////////////////////////////////////////////////////////////////
+ StatisticObject::I      StatisticObject::empty_s(Potassco::Statistics_t::Empty);
+-StatisticObject::RegVec StatisticObject::types_s(1, &StatisticObject::empty_s);
++const StatisticObject::I* StatisticObject::types_s[StatisticObject::max_types] = {&StatisticObject::empty_s};
++// Types register lazily from function-local statics, so two threads may
++// register different types at once. tid() reads without a lock: it only sees
++// ids returned after their slot was written, and the thread-safe init of
++// those statics orders that write before any use of the id.
++uint32 StatisticObject::registerType(const I* vtab) {
++#if CLASP_HAS_THREADS
++	static mt::mutex lock;
++	mt::lock_guard<mt::mutex> guard(lock);
++#endif
++	static uint32 size = 1;
++	if (size == max_types) { std::fputs("clasp: too many statistic types\n", stderr); std::abort(); }
++	types_s[size] = vtab;
++	return size++;
++}
+
+ StatisticObject::StatisticObject() : handle_(0) {}
+ StatisticObject::StatisticObject(const void* obj, uint32 type) {
+@@ -53,7 +74,9 @@ std::size_t StatisticObject::typeId() const {
+ 	return static_cast<uint32>(handle_ >> 48);
+ }
+ const StatisticObject::I* StatisticObject::tid() const {
+-	return types_s.at(static_cast<uint32>(handle_ >> 48));
++	uint32 t = static_cast<uint32>(handle_ >> 48);
++	POTASSCO_REQUIRE(t < max_types && types_s[t], "invalid object");
++	return types_s[t];
+ }
+ StatisticObject::Type StatisticObject::type() const {
+ 	return !empty() ? tid()->type : Potassco::Statistics_t::Empty;

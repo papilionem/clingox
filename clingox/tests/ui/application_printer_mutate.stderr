@@ -1,0 +1,14 @@
+error[E0594]: cannot assign to `n`, as it is a captured variable in a `Fn` closure
+  --> tests/ui/application_printer_mutate.rs:9:9
+   |
+ 7 |       let mut n = 0;
+   |           ----- `n` declared here, outside the closure
+ 8 |       let _ = Application::new().print_model(|_model, printer| {
+   |                                  -           ----------------- in this closure
+   |  ________________________________|
+   | |
+ 9 | |         n += 1;
+   | |         ^^^^^^ cannot assign
+10 | |         printer.print()
+11 | |     });
+   | |______- expects `Fn` instead of `FnMut`

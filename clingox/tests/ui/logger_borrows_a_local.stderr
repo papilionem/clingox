@@ -1,0 +1,19 @@
+error[E0373]: closure may outlive the current function, but it borrows `messages`, which is owned by the current function
+  --> tests/ui/logger_borrows_a_local.rs:10:17
+   |
+10 |         .logger(|_, text: &str| messages.push(text.to_owned()))
+   |                 ^^^^^^^^^^^^^^^ -------- `messages` is borrowed here
+   |                 |
+   |                 may outlive borrowed value `messages`
+   |
+note: function requires argument type to outlive `'static`
+  --> tests/ui/logger_borrows_a_local.rs:9:16
+   |
+ 9 |       let _ctl = Control::builder()
+   |  ________________^
+10 | |         .logger(|_, text: &str| messages.push(text.to_owned()))
+   | |_______________________________________________________________^
+help: to force the closure to take ownership of `messages` (and any other referenced variables), use the `move` keyword
+   |
+10 |         .logger(move |_, text: &str| messages.push(text.to_owned()))
+   |                 ++++

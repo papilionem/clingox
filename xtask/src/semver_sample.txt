@@ -1,0 +1,38 @@
+$ cargo semver-checks check-release --release-type minor --baseline-root /work/target/semver-baseline/a0f6f2b33bf7f1119450ab81a7678b28bcc1aaf0 -p clingox -p clingox-sys -p clingox-derive
+    Building clingox v508.2.0-alpha.0 (current)
+       Built [   2.495s] (current)
+     Parsing clingox v508.2.0-alpha.0 (current)
+      Parsed [   0.027s] (current)
+    Building clingox v508.2.0-alpha.0 (baseline)
+       Built [   2.255s] (baseline)
+     Parsing clingox v508.2.0-alpha.0 (baseline)
+      Parsed [   0.012s] (baseline)
+    Checking clingox v508.2.0-alpha.0 -> v508.2.0-alpha.0 (assume minor change)
+     Checked [   0.014s] 196 checks: 195 pass, 1 fail, 0 warn, 58 skip
+
+--- failure struct_missing: pub struct removed or renamed ---
+
+Description:
+A publicly-visible struct cannot be imported by its prior path. A `pub use` may have been removed, or the struct itself may have been renamed or removed entirely.
+        ref: https://doc.rust-lang.org/cargo/reference/semver.html#item-remove
+       impl: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.50.0/src/lints/struct_missing.ron
+
+Failed in:
+  struct clingox::prelude::Control, previously in file /work/target/semver-baseline/a0f6f2b33bf7f1119450ab81a7678b28bcc1aaf0/clingox/src/control.rs:53
+  struct clingox::Control, previously in file /work/target/semver-baseline/a0f6f2b33bf7f1119450ab81a7678b28bcc1aaf0/clingox/src/control.rs:53
+
+     Summary semver requires new major version: 1 major and 0 minor checks failed
+    Finished [   5.451s] clingox
+    Building clingox-sys v508.2.0-alpha.0 (current)
+       Built [   1.363s] (current)
+     Parsing clingox-sys v508.2.0-alpha.0 (current)
+      Parsed [   0.004s] (current)
+    Building clingox-sys v508.2.0-alpha.0 (baseline)
+       Built [   1.338s] (baseline)
+     Parsing clingox-sys v508.2.0-alpha.0 (baseline)
+      Parsed [   0.005s] (baseline)
+    Checking clingox-sys v508.2.0-alpha.0 -> v508.2.0-alpha.0 (assume minor change)
+     Checked [   0.010s] 196 checks: 196 pass, 58 skip
+     Summary no semver update required
+    Finished [   3.138s] clingox-sys
+xtask: `cargo semver-checks check-release --release-type minor --baseline-root /work/target/semver-baseline/a0f6f2b33bf7f1119450ab81a7678b28bcc1aaf0 -p clingox -p clingox-sys -p clingox-derive` failed with exit status: 100; `cargo install cargo-semver-checks --locked` installs the tool

@@ -1,0 +1,226 @@
+error[E0277]: `RefCell<Option<std::string::String>>` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `RefCell<Option<std::string::String>>` cannot be shared between threads safely
+  |
+  = help: within `ScopedControl<'static>`, the trait `Sync` is not implemented for `RefCell<Option<std::string::String>>`
+  = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
+
+error[E0277]: `NonNull<clingox_sys::bindings::clingo_control>` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `NonNull<clingox_sys::bindings::clingo_control>` cannot be shared between threads safely
+  |
+  = help: within `ScopedControl<'static>`, the trait `Sync` is not implemented for `NonNull<clingox_sys::bindings::clingo_control>`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+ --> src/raw/control.rs
+  |
+  | pub(crate) struct ControlHandle {
+  |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
+
+error[E0277]: `Cell<Option<clingox::raw::solve::ActiveSolve>>` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `Cell<Option<clingox::raw::solve::ActiveSolve>>` cannot be shared between threads safely
+  |
+  = help: within `ScopedControl<'static>`, the trait `Sync` is not implemented for `Cell<Option<clingox::raw::solve::ActiveSolve>>`
+  = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+ --> src/raw/control.rs
+  |
+  | pub(crate) struct ControlHandle {
+  |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
+
+error[E0277]: `Cell<Option<NonNull<clingox_sys::bindings::clingo_backend>>>` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `Cell<Option<NonNull<clingox_sys::bindings::clingo_backend>>>` cannot be shared between threads safely
+  |
+  = help: within `ScopedControl<'static>`, the trait `Sync` is not implemented for `Cell<Option<NonNull<clingox_sys::bindings::clingo_backend>>>`
+  = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+ --> src/raw/control.rs
+  |
+  | pub(crate) struct ControlHandle {
+  |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
+
+error[E0277]: `Cell<Option<NonNull<clingox_sys::bindings::clingo_program_builder>>>` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `Cell<Option<NonNull<clingox_sys::bindings::clingo_program_builder>>>` cannot be shared between threads safely
+  |
+  = help: within `ScopedControl<'static>`, the trait `Sync` is not implemented for `Cell<Option<NonNull<clingox_sys::bindings::clingo_program_builder>>>`
+  = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+ --> src/raw/control.rs
+  |
+  | pub(crate) struct ControlHandle {
+  |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
+
+error[E0277]: `RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>` cannot be shared between threads safely
+  |
+  = help: within `ScopedControl<'static>`, the trait `Sync` is not implemented for `RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>`
+  = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required because it appears within the type `AssertUnwindSafe<RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>>`
+ --> $RUST/core/src/panic/unwind_safe.rs
+  |
+  | pub struct AssertUnwindSafe<T>(#[stable(feature = "catch_unwind", since = "1.9.0")] pub T);
+  |            ^^^^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+ --> src/raw/control.rs
+  |
+  | pub(crate) struct ControlHandle {
+  |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
+
+error[E0277]: `(dyn clingox::raw::observer::ObserverSlots + Send + 'static)` cannot be shared between threads safely
+ --> tests/ui/control_is_not_sync.rs:5:19
+  |
+5 |     assert_sync::<clingox::Control>();
+  |                   ^^^^^^^^^^^^^^^^ `(dyn clingox::raw::observer::ObserverSlots + Send + 'static)` cannot be shared between threads safely
+  |
+  = help: the trait `Sync` is not implemented for `(dyn clingox::raw::observer::ObserverSlots + Send + 'static)`
+  = note: required for `std::ptr::Unique<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>` to implement `Sync`
+note: required because it appears within the type `Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>`
+ --> $RUST/alloc/src/boxed.rs
+  |
+  | pub struct Box<
+  |            ^^^
+note: required because it appears within the type `PhantomData<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>`
+ --> $RUST/core/src/marker.rs
+  |
+  | pub struct PhantomData<T: PointeeSized>;
+  |            ^^^^^^^^^^^
+note: required because it appears within the type `alloc::raw_vec::RawVec<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>`
+ --> $RUST/alloc/src/raw_vec/mod.rs
+  |
+  | pub(crate) struct RawVec<T, A: Allocator = Global> {
+  |                   ^^^^^^
+note: required because it appears within the type `Vec<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>`
+ --> $RUST/alloc/src/vec/mod.rs
+  |
+  | pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+  |            ^^^
+note: required because it appears within the type `AssertUnwindSafe<Vec<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>>`
+ --> $RUST/core/src/panic/unwind_safe.rs
+  |
+  | pub struct AssertUnwindSafe<T>(#[stable(feature = "catch_unwind", since = "1.9.0")] pub T);
+  |            ^^^^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+ --> src/raw/control.rs
+  |
+  | pub(crate) struct ControlHandle {
+  |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+ --> src/control.rs
+  |
+  | pub(crate) struct ControlCore {
+  |                   ^^^^^^^^^^^
+note: required because it appears within the type `ScopedControl<'static>`
+ --> src/control.rs
+  |
+  | pub struct ScopedControl<'r> {
+  |            ^^^^^^^^^^^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/control_is_not_sync.rs:2:19
+  |
+2 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`

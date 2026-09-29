@@ -1,0 +1,7 @@
+error: lifetime may not live long enough
+  --> tests/ui/application_main_box_any.rs:15:23
+   |
+14 |         .main(|ctl, _files| {
+   |                --- has type `&mut ScopedControl<'1>`
+15 |             keep.push(Box::new(std::mem::replace(ctl, Control::new()?)));
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ coercion requires that `'1` must outlive `'static`

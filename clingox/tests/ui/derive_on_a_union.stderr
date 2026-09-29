@@ -1,0 +1,5 @@
+error: clingo symbols cannot be derived for a union; use a struct or an enum
+ --> tests/ui/derive_on_a_union.rs:7:1
+  |
+7 | union Bits {
+  | ^^^^^

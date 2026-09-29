@@ -1,0 +1,5 @@
+error[E0599]: no associated function or constant named `from_bits_retain` found for struct `ShowType` in the current scope
+ --> tests/ui/show_type_is_not_bitflags.rs:4:32
+  |
+4 |     let _ = clingox::ShowType::from_bits_retain(u32::MAX);
+  |                                ^^^^^^^^^^^^^^^^ associated function or constant not found in `ShowType`

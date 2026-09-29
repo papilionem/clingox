@@ -1,0 +1,5 @@
+error: `#[clingo(..)]` does not apply to an enum: each variant is its own term, so put `#[clingo(name = "..")]` on the variant
+ --> tests/ui/derive_name_on_an_enum.rs:8:1
+  |
+8 | #[clingo(name = "shape")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

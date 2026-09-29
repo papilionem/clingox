@@ -1,0 +1,14 @@
+error[E0597]: `counter` does not live long enough
+  --> tests/ui/application_printer_outer_dies.rs:11:14
+   |
+ 9 |         let counter = std::sync::Mutex::new(0_u32);
+   |             ------- binding `counter` declared here
+10 |         app = Application::new().print_model(|_model, printer| {
+   |                                              ----------------- value captured here
+11 |             *counter.lock().unwrap() += 1;
+   |              ^^^^^^^ borrowed value does not live long enough
+...
+14 |     }
+   |     - `counter` dropped here while still borrowed
+15 |     drop(app);
+   |          --- borrow later used here

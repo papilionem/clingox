@@ -1,0 +1,73 @@
+error[E0478]: lifetime bound not satisfied
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:18:6
+   |
+18 | impl GroundProgramObserver for Reentrant<'_> {
+   |      ^^^^^^^^^^^^^^^^^^^^^
+   |
+note: lifetime parameter instantiated with the anonymous lifetime as defined here
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:18:42
+   |
+18 | impl GroundProgramObserver for Reentrant<'_> {
+   |                                          ^^
+   = note: but lifetime parameter must outlive the static lifetime
+
+error[E0803]: cannot infer an appropriate lifetime for lifetime parameter `'_` due to conflicting requirements
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:18:32
+   |
+18 | impl GroundProgramObserver for Reentrant<'_> {
+   |                                ^^^^^^^^^^^^^
+   |
+note: first, the lifetime cannot outlive the anonymous lifetime as defined here...
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:18:42
+   |
+18 | impl GroundProgramObserver for Reentrant<'_> {
+   |                                          ^^
+note: ...so that the types are compatible
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:18:32
+   |
+18 | impl GroundProgramObserver for Reentrant<'_> {
+   |                                ^^^^^^^^^^^^^
+   = note: expected `<Reentrant<'_> as GroundProgramObserver>`
+              found `<Reentrant<'_> as GroundProgramObserver>`
+   = note: but, the lifetime must be valid for the static lifetime...
+note: ...so that the declared lifetime parameter bounds are satisfied
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:18:32
+   |
+18 | impl GroundProgramObserver for Reentrant<'_> {
+   |                                ^^^^^^^^^^^^^
+
+error[E0597]: `ctl` does not live long enough
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:28:32
+   |
+26 |     let mut ctl = Control::new().unwrap();
+   |         ------- binding `ctl` declared here
+27 |     ctl.add_base("a.").unwrap();
+28 |     let obs = Reentrant { ctl: &mut ctl };
+   |                                ^^^^^^^^ borrowed value does not live long enough
+29 |     ctl.register_observer(obs, false).unwrap();
+   |     --------------------------------- argument requires that `ctl` is borrowed for `'static`
+30 | }
+   | - `ctl` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/observer.rs
+   |
+   |         observer: impl GroundProgramObserver,
+   |                        ^^^^^^^^^^^^^^^^^^^^^
+
+error[E0499]: cannot borrow `ctl` as mutable more than once at a time
+  --> tests/ui/observer_borrows_the_control_it_is_registered_on.rs:29:5
+   |
+28 |     let obs = Reentrant { ctl: &mut ctl };
+   |                                -------- first mutable borrow occurs here
+29 |     ctl.register_observer(obs, false).unwrap();
+   |     ^^^------------------------------
+   |     |
+   |     second mutable borrow occurs here
+   |     argument requires that `ctl` is borrowed for `'static`
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/observer.rs
+   |
+   |         observer: impl GroundProgramObserver,
+   |                        ^^^^^^^^^^^^^^^^^^^^^

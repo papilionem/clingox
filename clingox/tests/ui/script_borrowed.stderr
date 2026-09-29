@@ -1,0 +1,56 @@
+error[E0478]: lifetime bound not satisfied
+  --> tests/ui/script_borrowed.rs:12:6
+   |
+12 | impl Script for Borrowing<'_> {
+   |      ^^^^^^
+   |
+note: lifetime parameter instantiated with the anonymous lifetime as defined here
+  --> tests/ui/script_borrowed.rs:12:27
+   |
+12 | impl Script for Borrowing<'_> {
+   |                           ^^
+   = note: but lifetime parameter must outlive the static lifetime
+
+error[E0803]: cannot infer an appropriate lifetime for lifetime parameter `'_` due to conflicting requirements
+  --> tests/ui/script_borrowed.rs:12:17
+   |
+12 | impl Script for Borrowing<'_> {
+   |                 ^^^^^^^^^^^^^
+   |
+note: first, the lifetime cannot outlive the anonymous lifetime as defined here...
+  --> tests/ui/script_borrowed.rs:12:27
+   |
+12 | impl Script for Borrowing<'_> {
+   |                           ^^
+note: ...so that the types are compatible
+  --> tests/ui/script_borrowed.rs:12:17
+   |
+12 | impl Script for Borrowing<'_> {
+   |                 ^^^^^^^^^^^^^
+   = note: expected `<Borrowing<'_> as clingox::Script>`
+              found `<Borrowing<'_> as clingox::Script>`
+   = note: but, the lifetime must be valid for the static lifetime...
+note: ...so that the declared lifetime parameter bounds are satisfied
+  --> tests/ui/script_borrowed.rs:12:17
+   |
+12 | impl Script for Borrowing<'_> {
+   |                 ^^^^^^^^^^^^^
+
+error[E0597]: `text` does not live long enough
+  --> tests/ui/script_borrowed.rs:21:67
+   |
+20 |     let text = String::from("local");
+   |         ---- binding `text` declared here
+21 |     let _ = clingox::script::register("borrowing", "1", Borrowing(&text));
+   |             ------------------------------------------------------^^^^^--
+   |             |                                                     |
+   |             |                                                     borrowed value does not live long enough
+   |             argument requires that `text` is borrowed for `'static`
+22 | }
+   | - `text` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/script.rs
+   |
+   | pub fn register(name: &str, version: &str, script: impl Script) -> Result<()> {
+   |                                                         ^^^^^^

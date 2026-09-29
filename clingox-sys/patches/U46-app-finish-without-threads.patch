@@ -1,0 +1,33 @@
+Fix for clingox UPSTREAM-ISSUES U46: the application's control never delivers
+the statistics and finish events of a solve when clasp is built without threads.
+
+ClingoApp::onEvent forwards clasp's StepReady event to ClingoControl::onFinish,
+which delivers on_statistics and on_finish to the solve event handler
+(clingo_solve_event_type_statistics and _finish), only inside
+"#if CLASP_HAS_THREADS". ClingoLib::onEvent, the library control's twin, has no
+such guard. Without threads (WebAssembly without atomics) a solve with a
+handler on the control of clingo_main therefore gets its model and unsat events
+but never the statistics and finish events, in any solve mode.
+
+The call is safe to make in every build. The application's control passes no
+event handler to ClaspFacade::solve, so StepReady reaches it only through
+the shared context's handler, once per step (stopStep reports it under
+"!solved()"), and onFinish clears the handler it delivered to. Threaded builds
+already run exactly this code. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libclingo/src/clingo_app.cc b/libclingo/src/clingo_app.cc
+--- a/libclingo/src/clingo_app.cc
++++ b/libclingo/src/clingo_app.cc
+@@ -180,12 +180,10 @@
+     return BaseType::onModel(s, m) && ret;
+ }
+ void ClingoApp::onEvent(Clasp::Event const &ev) {
+-#if CLASP_HAS_THREADS
+     Clasp::ClaspFacade::StepReady const *r = Clasp::event_cast<Clasp::ClaspFacade::StepReady>(ev);
+     if (r && grd) {
+         grd->onFinish(r->summary->result);
+     }
+-#endif
+     BaseType::onEvent(ev);
+ }
+ void ClingoApp::run(Clasp::ClaspFacade &clasp) {

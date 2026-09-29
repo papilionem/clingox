@@ -1,0 +1,5 @@
+error: a trailing comma after the last argument is not allowed, as in clingo
+ --> tests/ui/sym_trailing_comma_after_arguments.rs:6:30
+  |
+6 |     let _ = clingox::sym!(p(1,));
+  |                              ^

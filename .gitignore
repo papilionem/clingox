@@ -1,0 +1,5 @@
+/target
+/.tools
+/xtask/browser/node_modules
+/guide/book/
+__pycache__/

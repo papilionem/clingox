@@ -1,0 +1,70 @@
+# ThreadSanitizer suppressions for `cargo xtask sanitize` (TESTING 5).
+#
+# One line per known race inside clasp, each recorded in
+# docs/dev/UPSTREAM-ISSUES.md and in DESIGN S12. No line names a clingox or
+# Rust symbol: a race in clingox's own code must always fail the run.
+
+# U11: every LogicProgram shares the static trueAtom_g, and controls on
+# different threads write to it. Each write stores the value already present.
+race:Clasp::Asp::trueAtom_g
+
+# U11: ReduceParams::prepare writes into the shared default
+# configuration config_def_s the same values on every control.
+race:Clasp::ReduceParams::prepare
+
+# U12: SequentialSolve::term_ is a volatile int, incremented by the thread that
+# interrupts and read by the solver thread.
+race:Clasp::SequentialSolve::doInterrupt
+
+# U12: with several solver threads, an interrupt resets ParallelSolve's syncT
+# timer while the solver threads start and lap it (see ControlPtr in
+# clingox/src/raw/interrupt.rs). The timer only feeds clasp's timing
+# statistics.
+race:Clasp::mt::ParallelSolve::doInterrupt
+
+# U20: UncoreMinimize::initLevel reads clasp's shared optimum level by level
+# with no generation check, unlike its sibling readers. Scoped to this one
+# function only: a differential run against a single-threaded reference found
+# no mismatch in 1,968 runs, so the decision was a suppression here rather
+# than a code change (see UPSTREAM-ISSUES U20 for the full record and the
+# negative control that confirms this suppression is not vacuous).
+race:Clasp::UncoreMinimize::initLevel
+
+# U20 (threads_optimisation.rs, a heavier multi-threaded optimisation test
+# than the earlier verification): DefaultMinimize::integrateBound reads
+# the same shared optimum through updateBounds's seqlock-style retry loop
+# (read the generation, read the bound, retry if the generation moved), which
+# ThreadSanitizer still flags as a race even though the retry makes a torn
+# read harmless. Same shared state, same reasoning as initLevel above.
+race:Clasp::DefaultMinimize::integrateBound
+
+# U20 (same test, its largest program, needed to reach this): UncoreMinimize::
+# valid reads shared_->upper(level_) on its "maxBound" path with no generation
+# check either, the same as initLevel and named in the same UPSTREAM-ISSUES U20
+# entry ("the maxBound path of valid").
+race:Clasp::UncoreMinimize::valid
+
+# U20 (same test): Enumerator::optimize() and Enumerator::commitUnsat() touch
+# the enumerator's own state (sym_, the model) from whichever solver thread
+# hits it first. ParallelSolve::commitUnsat only takes the model lock when
+# Enumerator::unsatType() reports unsat_sync, which the only Enumerator this
+# codebase's clasp ships never does during optimisation (it reports
+# unsat_cont), so these calls run unlocked across solver threads. Same
+# differential record as initLevel: no wrong optimum or cost over
+# thousands of runs (the models themselves were not compared).
+race:Clasp::Enumerator::optimize
+race:Clasp::Enumerator::commitUnsat
+
+# U21: ShortImplicationsGraph::add increments a plain uint32 clause-count
+# statistic with no lock while several solver threads share short clauses at
+# once. The clause itself is still added through the atomic-based Block the
+# shared list actually uses; only its own count of itself can be lost.
+race:Clasp::ShortImplicationsGraph::add
+
+# U28: SharedContext::eliminated reads the master solver's own assignment
+# word with no lock, from ClingoPropagator::Control::addWatch (reached by
+# PropagateControl::add_watch/has_watch/remove_watch), while the master
+# thread's own ordinary decision-making writes the same word. Only reachable
+# from a non-sequential propagator with several solver threads; the bit read
+# never changes once the search starts.
+race:Clasp::SharedContext::eliminated

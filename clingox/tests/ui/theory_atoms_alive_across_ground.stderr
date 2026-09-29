@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `ctl` as mutable because it is also borrowed as immutable
+  --> tests/ui/theory_atoms_alive_across_ground.rs:12:5
+   |
+11 |     let atoms = ctl.theory_atoms().unwrap();
+   |                 --- immutable borrow occurs here
+12 |     ctl.ground(&[Part::base()]).unwrap();
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+13 |     let _ = atoms.len();
+   |             ----- immutable borrow later used here

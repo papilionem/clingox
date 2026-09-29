@@ -1,0 +1,5 @@
+error: `-` must be followed by a name (classical negation, `-p`) or an integer (`-5`); `sym!` does not negate splices or tuples
+ --> tests/ui/sym_negated_tuple.rs:6:29
+  |
+6 |     let _ = clingox::sym!(p(-(1, 2)));
+  |                             ^

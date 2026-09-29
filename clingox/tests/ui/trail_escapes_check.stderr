@@ -1,0 +1,127 @@
+error[E0277]: `RefCell<Option<Trail<'_>>>` cannot be shared between threads safely
+  --> tests/ui/trail_escapes_check.rs:32:21
+   |
+32 | impl Propagator for Escape<'_> {
+   |                     ^^^^^^^^^^ `RefCell<Option<Trail<'_>>>` cannot be shared between threads safely
+   |
+   = help: within `Escape<'_>`, the trait `Sync` is not implemented for `RefCell<Option<Trail<'_>>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/trail_escapes_check.rs:28:8
+   |
+28 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `Propagator`
+  --> src/propagate.rs
+   |
+   | pub trait Propagator: Send + Sync {
+   |                              ^^^^ required by this bound in `Propagator`
+
+error[E0277]: `*const clingox_sys::bindings::clingo_assignment` cannot be sent between threads safely
+  --> tests/ui/trail_escapes_check.rs:32:21
+   |
+32 | impl Propagator for Escape<'_> {
+   |                     ^^^^^^^^^^ `*const clingox_sys::bindings::clingo_assignment` cannot be sent between threads safely
+   |
+   = help: within `Option<Trail<'_>>`, the trait `Send` is not implemented for `*const clingox_sys::bindings::clingo_assignment`
+note: required because it appears within the type `clingox::raw::propagate::RawAssignment<'_>`
+  --> src/raw/propagate.rs
+   |
+   | pub(crate) struct RawAssignment<'a> {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `Trail<'_>`
+  --> src/propagate.rs
+   |
+   | pub struct Trail<'a> {
+   |            ^^^^^
+note: required because it appears within the type `Option<Trail<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required for `RefCell<Option<Trail<'_>>>` to implement `Send`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/trail_escapes_check.rs:28:8
+   |
+28 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `Propagator`
+  --> src/propagate.rs
+   |
+   | pub trait Propagator: Send + Sync {
+   |                       ^^^^ required by this bound in `Propagator`
+
+error[E0277]: `Cell<bool>` cannot be shared between threads safely
+  --> tests/ui/trail_escapes_check.rs:32:21
+   |
+32 | impl Propagator for Escape<'_> {
+   |                     ^^^^^^^^^^ `Cell<bool>` cannot be shared between threads safely
+   |
+   = help: the trait `Sync` is not implemented for `Cell<bool>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` or `std::sync::atomic::AtomicBool` instead
+   = note: required for `&Cell<bool>` to implement `Send`
+note: required because it appears within the type `Option<&Cell<bool>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+note: required because it appears within the type `Trail<'_>`
+  --> src/propagate.rs
+   |
+   | pub struct Trail<'a> {
+   |            ^^^^^
+note: required because it appears within the type `Option<Trail<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required for `RefCell<Option<Trail<'_>>>` to implement `Send`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/trail_escapes_check.rs:28:8
+   |
+28 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `Propagator`
+  --> src/propagate.rs
+   |
+   | pub trait Propagator: Send + Sync {
+   |                       ^^^^ required by this bound in `Propagator`
+
+error: lifetime may not live long enough
+  --> tests/ui/trail_escapes_check.rs:34:10
+   |
+33 |     fn check(&self, control: &mut PropagateControl<'_>) -> Result<()> {
+   |              -----           - let's call the lifetime of this reference `'1`
+   |              |
+   |              has type `&Escape<'2>`
+34 |         *self.slot.borrow_mut() = Some(control.assignment().trail());
+   |          ^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'1` must outlive `'2`
+   |
+   = note: requirement occurs because of the type `RefCell<Option<Trail<'_>>>`, which makes the generic argument `Option<Trail<'_>>` invariant
+   = note: the struct `RefCell<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error: lifetime may not live long enough
+  --> tests/ui/trail_escapes_check.rs:34:10
+   |
+33 |     fn check(&self, control: &mut PropagateControl<'_>) -> Result<()> {
+   |              -----  ------- has type `&mut PropagateControl<'3>`
+   |              |
+   |              has type `&Escape<'2>`
+34 |         *self.slot.borrow_mut() = Some(control.assignment().trail());
+   |          ^^^^^^^^^^^^^^^^^^^^^^ argument requires that `'3` must outlive `'2`
+   |
+   = note: requirement occurs because of the type `RefCell<Option<Trail<'_>>>`, which makes the generic argument `Option<Trail<'_>>` invariant
+   = note: the struct `RefCell<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
+
+error[E0716]: temporary value dropped while borrowed
+  --> tests/ui/trail_escapes_check.rs:34:40
+   |
+33 |     fn check(&self, control: &mut PropagateControl<'_>) -> Result<()> {
+   |              ----- has type `&Escape<'2>`
+34 |         *self.slot.borrow_mut() = Some(control.assignment().trail());
+   |          ----------------------        ^^^^^^^^^^^^^^^^^^^^         - temporary value is freed at the end of this statement
+   |          |                             |
+   |          |                             creates a temporary value which is freed while still in use
+   |          argument requires that borrow lasts for `'2`

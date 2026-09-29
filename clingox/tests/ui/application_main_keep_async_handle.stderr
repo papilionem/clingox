@@ -1,0 +1,14 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_keep_async_handle.rs:14:13
+   |
+11 |     let slot = std::cell::RefCell::new(Vec::new());
+   |         ---- `slot` declared here, outside of the closure body
+12 |     Application::new()
+13 |         .main(|ctl, _files| {
+   |                --- `ctl` is a reference that is only valid in the closure body
+14 |             slot.borrow_mut().push(ctl.solve_async(&[])?);
+   |             ^^^^^^^^^^^^^^^^^ `ctl` escapes the closure body here
+   |
+   = note: requirement occurs because of the type `RefCell<Vec<AsyncSolveHandle<'_>>>`, which makes the generic argument `Vec<AsyncSolveHandle<'_>>` invariant
+   = note: the struct `RefCell<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

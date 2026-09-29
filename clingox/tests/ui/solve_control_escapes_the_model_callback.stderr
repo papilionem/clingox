@@ -1,0 +1,121 @@
+error[E0277]: `*mut clingox_sys::bindings::clingo_solve_control` cannot be sent between threads safely
+  --> tests/ui/solve_control_escapes_the_model_callback.rs:37:57
+   |
+37 |     ctl.solve_with_events(clingox::SolveOptions::new(), Escape { slot: &mut kept })
+   |         -----------------                               ^^^^^^^^^^^^^^^^^^^^^^^^^^ `*mut clingox_sys::bindings::clingo_solve_control` cannot be sent between threads safely
+   |         |
+   |         required by a bound introduced by this call
+   |
+   = help: within `Escape<'_>`, the trait `Send` is not implemented for `*mut clingox_sys::bindings::clingo_solve_control`
+note: required because it appears within the type `clingox::raw::model::RawSolveControl<'_>`
+  --> src/raw/model.rs
+   |
+   | pub(crate) struct RawSolveControl<'m> {
+   |                   ^^^^^^^^^^^^^^^
+note: required because it appears within the type `SolveControl<'_>`
+  --> src/model.rs
+   |
+   | pub struct SolveControl<'m> {
+   |            ^^^^^^^^^^^^
+note: required because it appears within the type `Option<SolveControl<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required because it appears within the type `&mut Option<SolveControl<'_>>`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/solve_control_escapes_the_model_callback.rs:19:8
+   |
+19 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+  --> src/solve_events.rs
+   |
+   |     pub fn solve_with_events<H>(&mut self, options: SolveOptions, handler: H) -> Result<SolveResult>
+   |            ----------------- required by a bound in this associated function
+   |     where
+   |         H: SolveEventHandler + Send,
+   |                                ^^^^ required by this bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+
+error[E0277]: `*mut u8` cannot be shared between threads safely
+  --> tests/ui/solve_control_escapes_the_model_callback.rs:37:57
+   |
+37 |     ctl.solve_with_events(clingox::SolveOptions::new(), Escape { slot: &mut kept })
+   |         -----------------                               ^^^^^^^^^^^^^^^^^^^^^^^^^^ `*mut u8` cannot be shared between threads safely
+   |         |
+   |         required by a bound introduced by this call
+   |
+   = help: within `Model`, the trait `Sync` is not implemented for `*mut u8`
+   = note: required because it appears within the type `(*mut u8, PhantomPinned)`
+note: required because it appears within the type `PhantomData<(*mut u8, PhantomPinned)>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::model::ModelData`
+  --> src/raw/model.rs
+   |
+   | pub(crate) struct ModelData {
+   |                   ^^^^^^^^^
+note: required because it appears within the type `Model`
+  --> src/model.rs
+   |
+   | pub struct Model(ModelData);
+   |            ^^^^^
+   = note: required for `&Model` to implement `Send`
+note: required because it appears within the type `PhantomData<&Model>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::model::RawSolveControl<'_>`
+  --> src/raw/model.rs
+   |
+   | pub(crate) struct RawSolveControl<'m> {
+   |                   ^^^^^^^^^^^^^^^
+note: required because it appears within the type `SolveControl<'_>`
+  --> src/model.rs
+   |
+   | pub struct SolveControl<'m> {
+   |            ^^^^^^^^^^^^
+note: required because it appears within the type `Option<SolveControl<'_>>`
+  --> $RUST/core/src/option.rs
+   |
+   | pub enum Option<T> {
+   |          ^^^^^^
+   = note: required because it appears within the type `&mut Option<SolveControl<'_>>`
+note: required because it appears within the type `Escape<'_>`
+  --> tests/ui/solve_control_escapes_the_model_callback.rs:19:8
+   |
+19 | struct Escape<'a> {
+   |        ^^^^^^
+note: required by a bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+  --> src/solve_events.rs
+   |
+   |     pub fn solve_with_events<H>(&mut self, options: SolveOptions, handler: H) -> Result<SolveResult>
+   |            ----------------- required by a bound in this associated function
+   |     where
+   |         H: SolveEventHandler + Send,
+   |                                ^^^^ required by this bound in `clingox::solve_events::<impl ScopedControl<'_>>::solve_with_events`
+
+error: lifetime may not live long enough
+  --> tests/ui/solve_control_escapes_the_model_callback.rs:27:9
+   |
+23 | impl<'a> SolveEventHandler for Escape<'a> {
+   |      -- lifetime `'a` defined here
+24 |     fn on_model(&mut self, model: &mut ExtendableModel<'_>) -> Result<ControlFlow<()>> {
+   |                                   - let's call the lifetime of this reference `'1`
+...
+27 |         *self.slot = Some(model.context());
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ assignment requires that `'1` must outlive `'a`
+
+error: lifetime may not live long enough
+  --> tests/ui/solve_control_escapes_the_model_callback.rs:27:9
+   |
+23 | impl<'a> SolveEventHandler for Escape<'a> {
+   |      -- lifetime `'a` defined here
+24 |     fn on_model(&mut self, model: &mut ExtendableModel<'_>) -> Result<ControlFlow<()>> {
+   |                            ----- has type `&mut ExtendableModel<'2>`
+...
+27 |         *self.slot = Some(model.context());
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ assignment requires that `'2` must outlive `'a`

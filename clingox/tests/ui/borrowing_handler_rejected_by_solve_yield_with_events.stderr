@@ -1,0 +1,20 @@
+error[E0597]: `count` does not live long enough
+  --> tests/ui/borrowing_handler_rejected_by_solve_yield_with_events.rs:27:58
+   |
+25 |       let mut count = 0_u32;
+   |           --------- binding `count` declared here
+26 |       let handle = ctl
+   |  __________________-
+27 | |         .solve_yield_with_events(&[], Borrowing { count: &mut count })
+   | |__________________________________________________________^^^^^^^^^^__- argument requires that `count` is borrowed for `'static`
+   |                                                            |
+   |                                                            borrowed value does not live long enough
+...
+30 |   }
+   |   - `count` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/solve.rs
+   |
+   |         H: crate::SolveEventHandler + Send + 'static,
+   |                                              ^^^^^^^

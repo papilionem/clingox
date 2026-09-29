@@ -1,0 +1,123 @@
+# The scheduled run: the full matrix of ci.yml (it is called, so
+# `github.event_name` stays `schedule` there and the main-only jobs run), plus
+# checks that only make sense against moving dependencies.
+#
+# The caches are saved on every scheduled run as well, because the default
+# branch is where they are written (Swatinem/rust-cache and ccache both save
+# only on main), and a scheduled run keeps them from expiring.
+name: Nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_NET_RETRY: "10"
+  RUSTUP_MAX_RETRIES: "10"
+  RUST_BACKTRACE: "1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  # New advisories and yanked crates appear without a change to the repository.
+  deny:
+    name: cargo-deny (advisories)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: cargo-deny
+      - run: cargo deny check advisories
+
+  # Cargo.lock is committed, so a normal run never sees a new release of a
+  # dependency. This one resolves every dependency to its newest version and
+  # builds and tests against that.
+  latest-dependencies:
+    name: latest dependencies
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: latest-dependencies
+          # Its lock file differs every day, so its cache is never worth saving.
+          save-if: false
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: latest-dependencies
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo update
+      - run: cargo test --workspace
+
+  # Every direct dependency at the lowest version its requirement allows: the
+  # manifests must not claim a version that does not work.
+  minimal-versions:
+    name: minimal direct dependency versions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          shared-key: minimal-versions
+          save-if: false
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: minimal-versions
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo update -Z direct-minimal-versions
+      - run: cargo check --workspace --all-targets --all-features
+
+  # The single job for the schedule to report on.
+  conclusion:
+    name: conclusion
+    if: always()
+    needs: [ci, deny, latest-dependencies, minimal-versions]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$NEEDS" | jq -e 'all(.[]; .result == "success")' > /dev/null

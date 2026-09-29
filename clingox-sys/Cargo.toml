@@ -1,0 +1,99 @@
+[package]
+name = "clingox-sys"
+version = "508.2.0-alpha.0"
+description = "Raw FFI bindings to the clingo answer set programming system"
+keywords = ["clingo", "asp", "answer-set-programming", "logic", "solver"]
+categories = ["external-ffi-bindings"]
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+documentation = "https://docs.rs/clingox-sys"
+publish = false  # not published to crates.io at present
+links = "clingo"
+build = "build.rs"
+# The package carries only what the CMake build of the five static
+# libraries reads, plus every license file (DESIGN 5.4). Tests, examples, Catch,
+# the apps and the Python and Lua bindings stay out.
+include = [
+    "/Cargo.toml",
+    "/build.rs",
+    "/build/*.rs",
+    "/src/**/*.rs",
+    "/clingo.commit",
+    "/THIRD-PARTY-LICENSES",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+    "/patches/*.patch",
+    "/clingo/CMakeLists.txt",
+    "/clingo/LICENSE.md",
+    "/clingo/cmake/*.cmake",
+    "/clingo/cmake/*.in",
+    "/clingo/libclingo/CMakeLists.txt",
+    "/clingo/libclingo/clingo.h",
+    "/clingo/libclingo/clingo.hh",
+    "/clingo/libclingo/clingo.map",
+    "/clingo/libclingo/clingo/**",
+    "/clingo/libclingo/src/**",
+    "/clingo/libgringo/CMakeLists.txt",
+    "/clingo/libgringo/gen/**",
+    "/clingo/libgringo/gringo/**",
+    "/clingo/libgringo/src/**",
+    "/clingo/libreify/CMakeLists.txt",
+    "/clingo/libreify/reify/**",
+    "/clingo/libreify/src/**",
+    "/clingo/clasp/CMakeLists.txt",
+    "/clingo/clasp/LICENSE",
+    "/clingo/clasp/cmake/**",
+    "/clingo/clasp/clasp/**",
+    "/clingo/clasp/src/**",
+    "/clingo/clasp/libpotassco/CMakeLists.txt",
+    "/clingo/clasp/libpotassco/LICENSE",
+    "/clingo/clasp/libpotassco/cmake/**",
+    "/clingo/clasp/libpotassco/potassco/**",
+    "/clingo/clasp/libpotassco/src/**",
+    "/clingo/third_party/CMakeLists.txt",
+    "/clingo/third_party/hopscotch-map/LICENSE",
+    "/clingo/third_party/hopscotch-map/include/**",
+    "/clingo/third_party/optional/COPYING",
+    "/clingo/third_party/optional/include/**",
+    "/clingo/third_party/ordered-map/LICENSE",
+    "/clingo/third_party/ordered-map/include/**",
+    "/clingo/third_party/sparse-map/LICENSE",
+    "/clingo/third_party/sparse-map/include/**",
+    "/clingo/third_party/variant/LICENSE.md",
+    "/clingo/third_party/variant/include/**",
+    "/clingo/third_party/wide-integer/LICENSE_1_0.txt",
+    "/clingo/third_party/wide-integer/math/**",
+]
+
+[features]
+default = ["vendored", "threads"]
+# Build clingo from the source vendored in `clingo/`, with the patches in `patches/`.
+# Needs CMake and a C++ compiler, and no network. Without it, a system clingo
+# (5.8.1 or newer within 5.8) is linked instead. CLINGOX_SYS_NO_VENDOR=1 overrides
+# the feature, because Cargo features are additive and a dependency may have turned
+# it on.
+vendored = []
+# Build clasp with thread support: asynchronous solving, timeouts and more than one
+# solver thread. On wasm32-unknown-emscripten it only takes effect when the target
+# has the `atomics` feature (DESIGN 9). Ignored for a system clingo, whose thread
+# support is set by `CLINGO_THREADS`.
+threads = []
+
+[dependencies]
+
+[build-dependencies]
+cmake = "0.1.58"
+
+[lints]
+workspace = true
+
+# The vendored build needs no network: every source it compiles ships in the
+# package, and CMake fetches nothing. On docs.rs (DOCS_RS set) build.rs skips the
+# native build and rustdoc reads the committed bindings.
+[package.metadata.docs.rs]
+features = ["vendored", "threads"]
+targets = ["x86_64-unknown-linux-gnu"]

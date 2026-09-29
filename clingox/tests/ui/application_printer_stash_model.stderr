@@ -1,0 +1,13 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_printer_stash_model.rs:23:9
+   |
+21 |     let keep: Slot<&Model> = Slot(Cell::new(None));
+   |         ---- `keep` declared here, outside of the closure body
+22 |     let _ = Application::new().print_model(|model, printer| {
+   |                                             ----- `model` is a reference that is only valid in the closure body
+23 |         keep.set(model);
+   |         ^^^^^^^^^^^^^^^ `model` escapes the closure body here
+   |
+   = note: requirement occurs because of the type `Slot<&Model>`, which makes the generic argument `&Model` invariant
+   = note: the struct `Slot<T>` is invariant over the parameter `T`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

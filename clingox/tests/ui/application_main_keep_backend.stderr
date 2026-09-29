@@ -1,0 +1,14 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/application_main_keep_backend.rs:15:17
+   |
+11 |     let mut keep: Vec<&mut clingox::backend::Backend<'static>> = Vec::new();
+   |         -------- `keep` declared here, outside of the closure body
+...
+14 |             ctl.with_backend(|backend| {
+   |                               ------- `backend` is a reference that is only valid in the closure body
+15 |                 keep.push(backend);
+   |                 ^^^^^^^^^^^^^^^^^^ `backend` escapes the closure body here
+   |
+   = note: requirement occurs because of a mutable reference to `Vec<&mut Backend<'_>>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

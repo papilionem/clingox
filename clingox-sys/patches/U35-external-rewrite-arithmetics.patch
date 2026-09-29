@@ -1,0 +1,52 @@
+Fix for clingox UPSTREAM-ISSUES U35: grounding an #external with an arithmetic
+type term crashes the process.
+
+ExternalHeadAtom::rewriteArithmetics calls Term::rewriteArithmetics on the atom
+and on the type term and throws away the returned replacement. For a BinOpTerm
+that is not linear (X\2, X**2, X+X) and for a UnOpTerm other than NEG (|X|, ~X)
+the call moves the operands into the term it registers in the arithmetics map
+and returns the auxiliary variable that must take the term's place. Discarded,
+the original term stays in the statement with null children, and the next
+traversal (Statement::check) dereferences them: SIGSEGV from any program text
+such as "#external e(X) : f(X). [X\2]". Every other caller wraps the call in
+Term::replace; this patch does the same. The unsafe-variable check then sees
+the auxiliary variable, so an unbound X is reported as an ordinary error.
+
+ProjectHeadAtom and HeuristicHeadAtom carry the same discarded call for their
+atom. Neither is reachable today (the parser and the AST layer only produce
+function atoms there), so the change keeps the three copies consistent.
+Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libgringo/src/input/aggregates.cc b/libgringo/src/input/aggregates.cc
+index 39b40f3..76a9553 100644
+--- a/libgringo/src/input/aggregates.cc
++++ b/libgringo/src/input/aggregates.cc
+@@ -2542,7 +2542,7 @@
+ }
+ 
+ void ProjectHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxgen) {
+-    atom_->rewriteArithmetics(arith, auxgen);
++    Term::replace(atom_, atom_->rewriteArithmetics(arith, auxgen));
+ }
+ 
+ void ProjectHeadAtom::assignLevels(AssignLevel &lvl) {
+@@ -2627,8 +2627,8 @@
+ }
+ 
+ void ExternalHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxgen) {
+-    atom_->rewriteArithmetics(arith, auxgen);
+-    type_->rewriteArithmetics(arith, auxgen);
++    Term::replace(atom_, atom_->rewriteArithmetics(arith, auxgen));
++    Term::replace(type_, type_->rewriteArithmetics(arith, auxgen));
+ }
+ 
+ void ExternalHeadAtom::assignLevels(AssignLevel &lvl) {
+@@ -2727,7 +2727,7 @@
+ }
+ 
+ void HeuristicHeadAtom::rewriteArithmetics(Term::ArithmeticsMap &arith, AuxGen &auxgen) {
+-    atom_->rewriteArithmetics(arith, auxgen);
++    Term::replace(atom_, atom_->rewriteArithmetics(arith, auxgen));
+ }
+ 
+ void HeuristicHeadAtom::assignLevels(AssignLevel &lvl) {

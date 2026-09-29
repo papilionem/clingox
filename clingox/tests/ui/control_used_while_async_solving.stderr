@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `ctl` as mutable more than once at a time
+  --> tests/ui/control_used_while_async_solving.rs:11:5
+   |
+10 |     let mut handle = ctl.solve_async(&[]).unwrap();
+   |                      --- first mutable borrow occurs here
+11 |     ctl.add_base("b.").unwrap();
+   |     ^^^ second mutable borrow occurs here
+12 |     let _done = handle.wait(std::time::Duration::ZERO);
+   |                 ------ first borrow later used here

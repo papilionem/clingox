@@ -1,0 +1,18 @@
+error[E0277]: `f64` has no clingo form: it does not implement `ToSymbol`
+  --> tests/ui/derive_unsupported_field_type.rs:10:13
+   |
+10 |     weight: f64,
+   |             ^^^ `f64` cannot be converted to a clingo symbol
+   |
+   = help: the trait `ToSymbol` is not implemented for `f64`
+   = note: derive `ToSymbol` for your own types; for text, mark a `String` field `#[clingo(string)]` or `#[clingo(constant)]`, or build the symbol with `Symbol::string` or `Symbol::function`
+   = help: the following other types implement trait `ToSymbol`:
+             i128
+             i16
+             i32
+             i64
+             i8
+             isize
+             u128
+             u16
+           and $N others

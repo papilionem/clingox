@@ -1,0 +1,19 @@
+error[E0277]: `Shape` is not a predicate: it does not implement `Predicate`
+  --> tests/ui/atoms_of_an_enum.rs:15:27
+   |
+15 |     let _ = model.atoms::<Shape>();
+   |                   -----   ^^^^^ `Shape` does not name one predicate
+   |                   |
+   |                   required by a bound introduced by this call
+   |
+help: the trait `Predicate` is not implemented for `Shape`
+  --> tests/ui/atoms_of_an_enum.rs:9:1
+   |
+ 9 | enum Shape {
+   | ^^^^^^^^^^
+   = note: `#[derive(FromSymbol)]` on a struct implements `Predicate`; an enum spans several names and arities, so read each predicate into a struct of its own
+note: required by a bound in `OwnedModel::atoms`
+  --> src/model.rs
+   |
+   |     pub fn atoms<T: Predicate>(&self) -> Result<Vec<T>> {
+   |                     ^^^^^^^^^ required by this bound in `OwnedModel::atoms`

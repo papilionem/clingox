@@ -1,0 +1,35 @@
+[workspace]
+members = ["clingox-sys", "clingox", "clingox-derive", "xtask", "systest"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/papilionem/clingox"
+# The guide has no separate site yet, so the homepage is the repository.
+homepage = "https://github.com/papilionem/clingox"
+readme = "README.md"
+
+# RULES 11.6. A crate opts in with `[lints] workspace = true`.
+[workspace.lints.rust]
+missing_docs = "warn"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+unsafe_op_in_unsafe_fn = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints allowed workspace-wide, each with its reason:
+# `must_use_candidate` fires on every getter; RULES 11.4 names where
+# `#[must_use]` belongs, and those items carry it explicitly.
+must_use_candidate = "allow"
+# Docs name the module, as in `raw::call`, which reads better than repeating it.
+module_name_repetitions = "allow"
+undocumented_unsafe_blocks = "deny"
+missing_safety_doc = "deny"
+print_stdout = "warn"
+print_stderr = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"

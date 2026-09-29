@@ -1,0 +1,34 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    # The vendored clingo is a git submodule pinned by clingox-sys/clingo.commit
+    # and checked against it; it is bumped by hand with a new clingox-sys
+    # release, never by a bot.
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Playwright drives the browsers of the WASM tests.
+  - package-ecosystem: npm
+    directory: /xtask/browser
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm:
+        patterns: ["*"]

@@ -1,0 +1,5 @@
+error[E0433]: cannot find `assert_models` in `clingox`
+ --> tests/ui/assert_models_at_the_crate_root.rs:5:14
+  |
+5 |     clingox::assert_models!(models, []);
+  |              ^^^^^^^^^^^^^ could not find `assert_models` in `clingox`

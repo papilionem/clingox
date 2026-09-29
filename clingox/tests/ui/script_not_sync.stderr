@@ -1,0 +1,35 @@
+error[E0277]: `Rc<()>` cannot be shared between threads safely
+  --> tests/ui/script_not_sync.rs:14:17
+   |
+14 | impl Script for Shared {
+   |                 ^^^^^^ `Rc<()>` cannot be shared between threads safely
+   |
+   = help: within `Shared`, the trait `Sync` is not implemented for `Rc<()>`
+note: required because it appears within the type `Shared`
+  --> tests/ui/script_not_sync.rs:12:8
+   |
+12 | struct Shared(Rc<()>);
+   |        ^^^^^^
+note: required by a bound in `clingox::Script`
+  --> src/script.rs
+   |
+   | pub trait Script: Send + Sync + 'static {
+   |                          ^^^^ required by this bound in `Script`
+
+error[E0277]: `Rc<()>` cannot be sent between threads safely
+  --> tests/ui/script_not_sync.rs:14:17
+   |
+14 | impl Script for Shared {
+   |                 ^^^^^^ `Rc<()>` cannot be sent between threads safely
+   |
+   = help: within `Shared`, the trait `Send` is not implemented for `Rc<()>`
+note: required because it appears within the type `Shared`
+  --> tests/ui/script_not_sync.rs:12:8
+   |
+12 | struct Shared(Rc<()>);
+   |        ^^^^^^
+note: required by a bound in `clingox::Script`
+  --> src/script.rs
+   |
+   | pub trait Script: Send + Sync + 'static {
+   |                   ^^^^ required by this bound in `Script`

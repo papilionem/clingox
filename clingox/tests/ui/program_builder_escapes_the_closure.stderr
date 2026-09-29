@@ -1,0 +1,23 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/program_builder_escapes_the_closure.rs:13:9
+   |
+11 |     let mut kept = None;
+   |         -------- `kept` declared here, outside of the closure body
+12 |     ctl.with_program_builder(|builder| {
+   |                               ------- `builder` is a reference that is only valid in the closure body
+13 |         kept = Some(builder);
+   |         ^^^^^^^^^^^^^^^^^^^^ `builder` escapes the closure body here
+
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/program_builder_escapes_the_closure.rs:13:9
+   |
+11 |     let mut kept = None;
+   |         -------- `kept` declared here, outside of the closure body
+12 |     ctl.with_program_builder(|builder| {
+   |                               ------- `builder` is a reference that is only valid in the closure body
+13 |         kept = Some(builder);
+   |         ^^^^^^^^^^^^^^^^^^^^ `builder` escapes the closure body here
+   |
+   = note: requirement occurs because of a mutable reference to `ProgramBuilder<'_>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance

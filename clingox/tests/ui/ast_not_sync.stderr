@@ -1,0 +1,17 @@
+error[E0277]: `NonNull<clingox_sys::bindings::clingo_ast>` cannot be shared between threads safely
+ --> tests/ui/ast_not_sync.rs:8:19
+  |
+8 |     assert_sync::<clingox::ast::Ast>();
+  |                   ^^^^^^^^^^^^^^^^^ `NonNull<clingox_sys::bindings::clingo_ast>` cannot be shared between threads safely
+  |
+  = help: within `clingox::ast::Ast`, the trait `Sync` is not implemented for `NonNull<clingox_sys::bindings::clingo_ast>`
+note: required because it appears within the type `clingox::ast::Ast`
+ --> src/ast.rs
+  |
+  | pub struct Ast(RawAst);
+  |            ^^^
+note: required by a bound in `assert_sync`
+ --> tests/ui/ast_not_sync.rs:5:19
+  |
+5 | fn assert_sync<T: Sync>() {}
+  |                   ^^^^ required by this bound in `assert_sync`
