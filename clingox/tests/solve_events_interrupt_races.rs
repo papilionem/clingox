@@ -145,10 +145,9 @@ fn an_interrupt_racing_an_async_search_with_a_user_handler_never_reaches_a_later
 // `AsyncSolveHandle::core` called while the search is still running.
 // ---------------------------------------------------------------------------
 
-/// A pigeonhole program that takes noticeably longer than microseconds to
-/// prove unsatisfiable (`n+1` pigeons in `n` holes), so a search on it stays
-/// "running" long enough for another thread to reliably call `core()`
-/// several times before it finishes.
+/// A pigeonhole program that takes a long time to prove unsatisfiable (`n+1`
+/// pigeons in `n` holes), so a search on it stays "running" long enough for
+/// another thread to call `core()` before it finishes.
 fn pigeonhole(holes: u32) -> String {
     let pigeons = holes + 1;
     let mut program = format!("hole(1..{holes}). pigeon(1..{pigeons}).\n");
@@ -162,7 +161,10 @@ fn async_solve_handle_core_can_be_called_while_the_search_is_still_running() {
     if !clingox_sys::HAS_THREADS {
         return;
     }
-    let program = pigeonhole(7);
+    // Nine holes take about a second, against about 30 ms for seven: a runner that
+    // stalls this thread for longer than that between starting the search and the
+    // first read would otherwise find the search over and read nothing.
+    let program = pigeonhole(9);
     let mut ctl = Control::with_args(["-t", "1"]).unwrap();
     ctl.add_base(&program).unwrap();
     ctl.ground(&[Part::base()]).unwrap();

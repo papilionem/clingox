@@ -1,4 +1,4 @@
 # The number of `unsafe` blocks and `unsafe impl`s in clingox (sources and
 # tests), clingox-derive and the hand-written sources of clingox-sys, counted by
 # `cargo xtask check` (RULES 2). Raise it only in the change that adds one.
-465
+466

@@ -245,6 +245,12 @@ fn build_vendored(target: &Target) {
 
     if target.env == "msvc" {
         config.static_crt(target.has_feature("crt-static"));
+        // The `cmake` crate replaces CMake's own default flags with the C++
+        // compiler's, which lack `/EHsc`. Without it MSVC compiles clingo's
+        // `try` and `catch` without unwinding, and the first exception that
+        // clingo throws and catches itself (a syntax error, an error a
+        // callback returned) hangs or crashes the process.
+        config.cxxflag("/EHsc");
     }
     if target.is_emscripten() {
         // Rust uses native Wasm exceptions on this target. Without the same

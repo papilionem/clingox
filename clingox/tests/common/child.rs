@@ -195,7 +195,17 @@ fn run_child_full(
     Some(Outcome {
         code: status.code(),
         signal,
-        stdout: out.join().unwrap(),
-        stderr: err.join().unwrap(),
+        stdout: lines_as_written(out.join().unwrap()),
+        stderr: lines_as_written(err.join().unwrap()),
     })
+}
+
+/// The text with `\n` line ends. A Windows child writes `\r\n` through C's text
+/// mode, which is not what the tests compare.
+fn lines_as_written(text: String) -> String {
+    if cfg!(windows) {
+        text.replace("\r\n", "\n")
+    } else {
+        text
+    }
 }

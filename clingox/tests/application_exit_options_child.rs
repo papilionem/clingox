@@ -31,7 +31,7 @@
 //! - `--text` or `--output` with `--mode=clasp` or `--mode=clingo` exits with
 //!   128 ("can only be used with '--mode=gringo'"); with `--mode=gringo` they
 //!   run.
-//! - `--lemma-out=<file>` with a file that cannot be opened (`/`, a missing
+//! - `--lemma-out=<file>` with a file that cannot be opened (`/`, `.`, a missing
 //!   directory) exits with 1; `-` and `stdout` run. `--out-atomf=<format>`
 //!   exits with 1 unless the format starts with `-` or has exactly one `%s`
 //!   or `%0`, also through the abbreviations `--out-a` to `--out-atom` (`x`, `%d`, `%`, `%s%d`, `0`, `no` exit; `%s`, `-%d`, `a%sb`,
@@ -109,7 +109,7 @@ fn refused(case: &str) -> Vec<Vec<&'static str>> {
         "refused_setup" => vec![
             vec!["--lemma-out=/nonexistent/dir/x"],
             vec!["--lemma-out=/"],
-            vec!["--lemma-out=/tmp"],
+            vec!["--lemma-out=."],
             vec!["--out-atomf=x"],
             vec!["--out-atomf=%d"],
             vec!["--out-atomf=%"],

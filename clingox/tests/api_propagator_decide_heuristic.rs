@@ -331,6 +331,11 @@ impl Propagator for RecordsDecideThreads {
         _fallback: SolverLiteral,
     ) -> Result<Option<SolverLiteral>> {
         self.seen.lock().unwrap().insert(thread_id);
+        // A call that takes a moment keeps the search going long enough for the
+        // other solver threads to start and take part: on a machine with few
+        // cores the first thread can otherwise enumerate this small program
+        // before any other has begun, and only its id is seen.
+        std::thread::sleep(std::time::Duration::from_micros(200));
         Ok(None)
     }
 }

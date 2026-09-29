@@ -66,6 +66,17 @@ pub(crate) fn flush_c_stdio() {
         // other argument; it is safe to call at any time.
         unsafe { libc::fflush(std::ptr::null_mut()) };
     }
+    #[cfg(windows)]
+    {
+        // The C runtime's own `fflush`, declared here rather than pulling the
+        // `libc` crate in for one function.
+        unsafe extern "C" {
+            fn fflush(stream: *mut std::ffi::c_void) -> std::ffi::c_int;
+        }
+        // SAFETY: fflush(NULL) flushes all open output streams and takes no
+        // other argument; it is safe to call at any time.
+        unsafe { fflush(std::ptr::null_mut()) };
+    }
 }
 
 /// The signals whose dispositions clasp's application changes (F4, F18).
