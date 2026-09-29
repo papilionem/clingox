@@ -83,8 +83,9 @@ patches, so with one of them these remain:
 
 - **ARM64 Android phones.** clingo 5.8 stores flags in the high bits of pointers,
   which Android 11 and later tag on ARM64. Grounding and solving then give wrong,
-  empty results (clingo issues #475 and #540). clingox is tested only on the x86_64
-  Android emulator so far. The clingo maintainers say clingo 6 fixes this.
+  empty results (clingo issues #475 and #540). clingox's Android tests run on x86_64
+  and x86 emulators, which cannot show this; the ARM64 build is compiled in CI but
+  not run. The clingo maintainers say clingo 6 fixes this.
 
 ## Results to read carefully
 

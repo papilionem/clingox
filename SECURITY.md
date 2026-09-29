@@ -16,10 +16,16 @@ We are a small project. Expect an acknowledgement within about a week and a fix 
 reasoned answer within about a month for a confirmed problem. We will tell you when a
 fix is released and credit you unless you prefer otherwise.
 
+A fixed vulnerability is announced in a GitHub security advisory on this repository
+and in the changelog, and reported to the [RustSec advisory
+database](https://github.com/RustSec/advisory-db), so that `cargo audit` and
+`cargo deny` warn users of affected versions.
+
 ## Supported versions
 
 Only the latest release receives security fixes. While clingox is in pre-release, that
-means the latest pre-release tag.
+means the latest pre-release. `clingox`, `clingox-sys` and `clingox-derive` are
+released together with the same version, and a fix is released for all three.
 
 ## What counts as a security issue
 
@@ -50,8 +56,42 @@ The following are usually not security issues, and a normal issue is the right p
 If you are not sure whether something qualifies, report it privately; we would rather
 receive a report that turns out to be an ordinary bug.
 
-## Upstream
+## The vendored clingo
+
+`clingox-sys` ships the source of clingo 5.8.2 (with clasp, gringo, libpotassco and
+the header-only libraries listed in `clingox-sys/THIRD-PARTY-LICENSES`) and applies
+the patches in `clingox-sys/patches` to it at build time. This code is in scope: a
+memory-safety defect in it that safe clingox code can reach is a clingox security
+issue, and so is a defect that one of the patches introduces.
 
 Defects that originate in clingo, clasp, gringo or libpotassco are recorded in
 [`docs/dev/UPSTREAM-ISSUES.md`](docs/dev/UPSTREAM-ISSUES.md) and reported to the
 Potassco project where that is appropriate, so that other users of clingo benefit.
+When Potassco releases a fix, clingox moves to that clingo release; until then, a
+patch in `clingox-sys/patches` carries the fix for the vendored build. A clingo
+installed on the system is outside what clingox can fix: report its defects to
+[Potassco](https://github.com/potassco/clingo/issues), and use the vendored build
+if a patch exists.
+
+## Verifying a release
+
+Every GitHub release carries the `.crate` files of the three crates exactly as
+crates.io serves them, a `SHA256SUMS` file, and a build provenance attestation for
+each `.crate` file, signed through Sigstore by the release workflow. To check a
+release, with the [GitHub CLI](https://cli.github.com):
+
+```sh
+gh release download v508.2.0-beta.1 --repo papilionem/clingox
+sha256sum --check SHA256SUMS
+gh attestation verify clingox-508.2.0-beta.1.crate --repo papilionem/clingox
+```
+
+To compare with what Cargo downloads, fetch the same file from crates.io and check
+its hash against `SHA256SUMS`:
+
+```sh
+curl -sSfL https://static.crates.io/crates/clingox/clingox-508.2.0-beta.1.crate | sha256sum
+```
+
+Cargo itself checks every downloaded `.crate` file against the checksum in the
+crates.io index, and records it in `Cargo.lock`.

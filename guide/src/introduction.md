@@ -1,53 +1,97 @@
 # Introduction
 
-clingox is a Rust binding to [clingo](https://potassco.org/clingo/), the answer set
-programming (ASP) system from the Potassco project. It builds clingo from source as
-part of your Rust build, and exposes clingo's C API through a safe Rust interface.
-It covers the whole of clingo's C API except six functions (see
-[Status](#status)): solving, models, configuration and statistics, symbolic and
-theory atoms, the backend, ground program observers, propagators, syntax trees,
-clingo's own application layer and custom scripting languages. It runs on Linux,
-Android and WebAssembly (Node.js and browsers), with more platforms planned.
+clingox is a Rust library for [clingo](https://potassco.org/clingo/), the answer set
+programming (ASP) system from the Potassco project. You describe a problem as a
+logic program, clingo finds its answer sets, and clingox lets a Rust program add
+the program and its facts, ground and solve it, and read the answer sets back.
 
-It offers two layers in one crate:
+It is for Rust developers who want a declarative solver inside their program, for
+example to check a configuration against rules or to plan a schedule, and for
+clingo users who want to drive clingo from Rust. Your code needs no `unsafe`.
+
+## A first look
+
+```rust
+use clingox::prelude::*;
+
+fn main() -> clingox::Result<()> {
+    let mut ctl = Control::new()?;
+    // Pick exactly one colour, but not red.
+    ctl.add_base(
+        "colour(red; green; blue).
+         { pick(C) : colour(C) } = 1.
+         :- pick(red).
+         #show pick/1.",
+    )?;
+    ctl.ground(&[Part::base()])?;
+
+    let (result, models) = ctl.solve_all()?;
+    for model in &models {
+        println!("{model}");
+    }
+    println!("{result}");
+#   assert_eq!(models.len(), 2);
+#   assert_eq!(result.to_string(), "SATISFIABLE");
+    Ok(())
+}
+```
+
+The program prints two answer sets, one with `pick(blue)` and one with
+`pick(green)`, and then `SATISFIABLE`.
+[Your first program](getting-started/first-program.md) explains each step.
+
+## Two layers
 
 - **The mirror layer** follows clingo's own API, named after its Python module. If
   you know clingo, you will recognise `add`, `ground`, `solve` and
-  `assign_external`, and clingo's documentation applies. Time budgets and
-  interrupts (`solve_with`, `InterruptHandle`) live here too.
+  `assign_external`, and clingo's documentation applies.
 - **The typed layer** adds what Rust makes possible: facts and results as your own
   Rust types, explicit solve outcomes, and helpers for testing your rules.
 
-Neither layer requires `unsafe` in your code.
+[The two layers](concepts/two-layers.md) explains how they fit together.
+
+## What is covered
+
+clingox builds clingo 5.8.2 from source as part of your Rust build, with patches for
+known clingo defects, or links a clingo installed on your system. It wraps 248 of
+clingo's 254 C functions: solving, models, configuration and statistics, symbolic
+and theory atoms, the backend, ground program observers, propagators, syntax trees,
+clingo's own application layer and custom scripting languages. The six functions
+left out, and the reason for each, are listed in `docs/dev/COVERAGE.md` in the
+repository. Lua is not bound.
+
+The test suite runs on Linux, macOS, Windows, FreeBSD, NetBSD and OpenBSD, on
+Android emulators and the iOS simulator, and on WebAssembly under Node.js and in
+browsers. The [platform page](reference/platforms.md) says what runs where.
 
 clingox is independent of the Potassco project and is not the `clingo` crate on
-crates.io.
+crates.io. [Coming from the clingo crate](reference/coming-from-clingo-crate.md)
+compares the two.
 
 ## Status
 
-clingox is pre-release and not yet published on crates.io. It wraps 248 of clingo's
-254 C functions. The safe API covers adding, grounding and solving programs, models,
-externals, configuration, statistics, symbolic atoms, theory atoms, the backend,
-ground program observers, solve events, time budgets and async solving, propagators,
-syntax trees (the AST), the application layer (`Application`, which runs clingo's own
-command line with your options, printer and `main`), custom scripting languages, and
-the typed layer: derives, `sym!`, `add_facts`, typed results and testing helpers.
-
-The six functions that are not wrapped, and the reason for each, are listed in
-`docs/dev/COVERAGE.md` in the repository. Lua is not bound. Until the first release,
-versions are pre-releases and the API may change between them.
+clingox is pre-release: pre-releases such as `508.2.0-beta.1` may change the API
+between them. [Versions](concepts/versions.md) explains the version numbers, the
+compatibility promise and the minimum supported Rust version.
 
 Chapters without a link in the table of contents are planned. Each is written
 together with the API it describes, and every Rust example in this guide runs as a
 test.
 
-## How this guide is organised
+## Where to go next
 
-- **Getting started** and the **tutorial** teach clingox from the first program on.
-- **How-to guides** answer specific tasks: time budgets, testing, browsers, servers.
-- **Concepts** explain how clingox is designed and why.
-- **Reference** lists what you look up: platforms, known issues in clingo, and
-  guides for readers coming from pyclingo or the clingo crate.
+- [Installation](getting-started/installation.md) and
+  [your first program](getting-started/first-program.md) get you running.
+- The tutorial, from [facts and rules](tutorial/facts-and-rules.md) on, teaches
+  the typed layer, solving step by step and optimisation.
+- The how-to guides answer specific tasks, such as
+  [configuring the solver](how-to/configuration.md) or
+  [writing a propagator](how-to/write-a-propagator.md).
+- The concepts chapters explain how clingox is designed and why.
+- The reference has the platform table, known issues in clingo, and pages for
+  readers coming from [pyclingo](reference/coming-from-pyclingo.md) or the clingo
+  crate.
 
-The API reference for every type and function is in the crate's documentation. Until
-it is on docs.rs, build it from a checkout with `cargo doc --open`.
+The API reference for every type and function is on
+[docs.rs](https://docs.rs/clingox). From a checkout, `cargo doc --open` builds the
+same pages.

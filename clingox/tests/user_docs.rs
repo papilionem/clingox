@@ -255,14 +255,40 @@ fn the_readme_states_the_status_honestly() {
         !readme.contains("Nothing is bound"),
         "the README still says nothing is bound"
     );
-    let lower = readme.to_lowercase();
-    assert!(
-        lower.contains("not published") || lower.contains("unpublished"),
-        "the README must say that clingox is not published"
-    );
     assert!(
         readme.contains("5.8.2"),
         "the README names the clingo version"
+    );
+    // The version line (`508.2.x`) says which clingo the crate contains, and a
+    // pre-release must say that it is one, since its API may still change.
+    let version = env!("CARGO_PKG_VERSION");
+    let mut parts = version.split('.');
+    let line = format!(
+        "{}.{}.x",
+        parts.next().expect("a major version"),
+        parts.next().expect("a minor version")
+    );
+    assert!(
+        readme.contains(&format!("`{line}`")),
+        "the README names the version line {line}"
+    );
+    if version.contains('-') {
+        assert!(
+            readme.to_lowercase().contains("pre-release"),
+            "the README must say that {version} is a pre-release"
+        );
+    }
+    // An installation command that names a version must name this one.
+    for pinned in readme.split("cargo add clingox@").skip(1) {
+        let pinned: String = pinned
+            .chars()
+            .take_while(|c| !c.is_whitespace() && *c != '`')
+            .collect();
+        assert_eq!(pinned, version, "the README installs an old version");
+    }
+    assert!(
+        readme.contains("What is not done"),
+        "the README keeps its list of limitations"
     );
 }
 

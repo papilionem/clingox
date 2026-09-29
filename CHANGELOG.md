@@ -2,12 +2,13 @@
 
 All notable changes are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version numbers follow the
-scheme in the guide's [Versions](guide/src/concepts/versions.md) chapter: `508.2.x`
-contains clingo 5.8.2.
+scheme in the guide's [Versions](https://papilionem.github.io/clingox/concepts/versions.html)
+chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
-The first public release. No earlier version has been published.
+The first public release: safe bindings to clingo 5.8.2, covering 248 of its 254
+C functions, with a vendored build that patches eight clingo defects.
 
 ### Added
 
@@ -17,9 +18,8 @@ clingo's C API, and the build of clingo itself).
 
 **Raw bindings and build (`clingox-sys`)**
 
-- Raw bindings to the complete clingo 5.8.2 C API (254 functions), built from
-  vendored source on Linux, Android and WebAssembly, or linked against a clingo
-  installed on the system.
+- Raw bindings to the complete clingo 5.8.2 C API (254 functions), with clingo built
+  from vendored source or linked from an installation on the system.
 - Version checks at build time and again at run time: the linked clingo must be
   5.8.1 or newer within 5.8, the versions whose C API the bindings match. The
   vendored clingo is 5.8.2.
@@ -31,7 +31,8 @@ clingo's C API, and the build of clingo itself).
   `try` and `catch` without unwinding, and any exception clingo throws and catches
   itself (a syntax error, an error returned from a callback) hung or crashed the
   process. The MSVC libraries are also linked unbundled, since bundled into the rlib
-  they left it without a symbol table.
+  they left it without a symbol table. A clingo installed on a Windows system must
+  have been built with `/EHsc` too.
 - The vendored build applies small patches (listed below) to a copy of the clingo
   source, never to the submodule. A system library gets none. The patch applier
   also works on a checkout with CRLF line endings.
@@ -122,11 +123,20 @@ clingo's C API, and the build of clingo itself).
   own `main`, options (`register_options`, `validate_options`), model printer and
   logger. The run is contained: one run at a time per process, signal dispositions
   restored, and command lines that would end the process from inside clingo refused.
+  C's standard output is flushed around the run on every platform, Windows
+  included, so clingo's output and your printer's appear in order.
 - `script::Script` and `script::register` implement custom scripting languages for
   `#script (name) ... #end.` blocks and `@name(..)` terms.
 
 **Tooling, tests and documentation**
 
+- The test suite runs in CI on Linux (x86_64, ARM64, 32-bit x86, ARMv7 under qemu),
+  macOS (ARM64 and x86_64), Windows with MSVC (x64, ARM64, 32-bit x86), FreeBSD,
+  NetBSD and OpenBSD, on Android emulators (x86_64 and 32-bit x86), the iOS
+  simulator, and WebAssembly under Node.js, Chromium, Firefox and WebKit. Android on
+  ARM is built but not yet run. The guide's
+  [platform page](https://papilionem.github.io/clingox/reference/platforms.html)
+  says what each job runs and which are experimental.
 - `cargo xtask` runs the checks: lints, the `unsafe` budget, the guide build and
   doctests (`check`), tests per target (`test`), Miri on the `unsafe` primitives,
   sanitizer runs (`sanitize`), API compatibility (`semver`) and the conformance
@@ -135,22 +145,26 @@ clingo's C API, and the build of clingo itself).
   its C++ and Python unit tests and its `.lp` fixtures); the rest and their reasons
   are in `clingox/tests/conformance/NOT_PORTED.md`.
 - The guide (getting started, tutorial, concepts, how-to pages and reference,
-  including pages for people coming from the clingo crate and from pyclingo). Every
-  Rust block in the guide and the README runs as a test.
+  including pages for people coming from the clingo crate and from pyclingo),
+  published at <https://papilionem.github.io/clingox/>. Every Rust block in the
+  guide and the README runs as a test.
+- `CITATION.cff` gives the metadata for citing clingox, and points to the paper to
+  cite for clingo.
 - Design rules, test strategy, the coverage table, the record of upstream defects
   (`docs/dev/UPSTREAM-ISSUES.md`) and the check of those defects against clingo 6
   (`docs/dev/CLINGO6.md`).
 - A criterion benchmark suite for clingox's own layer (`clingox/benches/layer.rs`)
-  and its results against the `clingo` crate and pyclingo
-  (`docs/dev/BENCHMARKS.md`). Queries that cannot fail no longer reset clingo's
+  and its results against the `clingo` crate, pyclingo and clingo's own C++ API
+  (`docs/dev/BENCHMARKS.md`). On the same clingo 5.8.2 as the C++ API, grounding and
+  solving take the same time, and small calls cost 20 to 200 ns more each. Queries that cannot fail no longer reset clingo's
   error state before each call, which makes reading symbols, atoms and statistics
   two to nine times faster; no check was removed.
 
-### Fixed upstream defects via patches
+### Fixed
 
-The vendored build applies these patches to clingo. A system clingo keeps each
-defect, and the documentation says where it matters. The numbers refer to
-`docs/dev/UPSTREAM-ISSUES.md`.
+Defects in clingo 5.8.2, fixed by patches in the vendored build. A system clingo
+keeps each defect, and the documentation says where it matters. The numbers refer
+to `docs/dev/UPSTREAM-ISSUES.md`.
 
 - U1: dividing the smallest integer by -1, taking `x \ 0` in a term, or matching a
   linear term such as `-X+0` against a domain value no longer kills the process.
@@ -168,7 +182,7 @@ defect, and the documentation says where it matters. The numbers refer to
 - U50: the guiding paths that clasp's parallel search had split off and not yet
   handed out are freed when it is stopped in splitting mode.
 
-### Security-relevant guards
+### Security
 
 These guards keep safe code from reaching undefined behaviour or unbounded
 resource use in clingo. They are checked by clingox before clingo is called, or
@@ -205,3 +219,5 @@ by the way an API is shaped.
   recursion on the Rust stack, and the AST cycle check is iterative. Where clingo
   itself recurses (dropping, printing, copying or comparing a very deep syntax
   tree) the limit is documented (U34).
+
+[508.2.0-beta.1]: https://github.com/papilionem/clingox/releases/tag/v508.2.0-beta.1

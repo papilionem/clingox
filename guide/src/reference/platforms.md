@@ -1,26 +1,108 @@
 # Platform support
 
 clingox builds clingo from its C++ source for each target, so the question for every
-platform is whether that build and the test suite have been run there.
+platform is whether that build and the test suite have been run there. The table
+records what the continuous integration workflow (`.github/workflows/ci.yml`) runs
+on each target, as of
+[run 36616256903](https://github.com/papilionem/clingox/actions/runs/36616256903).
 
-| Platform | Target | Status |
-|---|---|---|
-| Linux x86_64 | `x86_64-unknown-linux-gnu` | Tested |
-| Android x86_64 | `x86_64-linux-android` | Tested on an emulator (API 34) |
-| Android ARM64 | `aarch64-linux-android` | Planned. clingo 5.8 is known to misbehave on Android 11+ ARM64 devices ([known issues](known-issues.md)) |
-| WebAssembly in Node.js | `wasm32-unknown-emscripten` | Tested |
-| WebAssembly in Chromium | `wasm32-unknown-emscripten` | Tested |
-| WebAssembly in Firefox | `wasm32-unknown-emscripten` | Tested |
-| WebAssembly in Safari | `wasm32-unknown-emscripten` | Not yet tested |
-| macOS | `aarch64-apple-darwin`, `x86_64-apple-darwin` | Planned |
-| Windows | `x86_64-pc-windows-msvc`, `-gnu` | Planned |
-| iOS | `aarch64-apple-ios` | Planned |
-| Linux ARM64 | `aarch64-unknown-linux-gnu` | Planned |
+## Status words
 
-"Tested" means the full test suite passes on that platform, including clingo's error
-handling, which is the part most sensitive to how C++ is compiled for a target.
+- **Tested**: the test suite runs in CI and a failure fails the run.
+- **Tested, experimental**: the test suite runs in CI and has passed, but the job is
+  marked `continue-on-error`, so a failure is reported without failing the run.
+- **Built only**: CI compiles the library and its test executables for the target,
+  but no test runs there.
+- **Not tested**: no test runs there in CI.
+- **nightly**, after a status: the job runs every night and when started by hand,
+  not on every push.
+
+"The test suite" means `cargo test` on the target: the unit tests, the integration
+tests and the doctests of `clingox-sys` and `clingox`. Where a row says so, the
+doctests or some tests are left out. The compile-fail tests, which compare exact
+compiler output, run only on Linux x86_64 with a pinned Rust release.
+
+## Desktop and server
+
+| Platform | Target | Status | How it runs |
+|---|---|---|---|
+| Linux x86_64 | `x86_64-unknown-linux-gnu` | Tested | Ubuntu 24.04, whole workspace. Also runs the sanitizers and Miri (below). |
+| Linux ARM64 | `aarch64-unknown-linux-gnu` | Tested | Ubuntu 24.04 on an ARM64 runner, whole workspace. |
+| Linux x86 (32-bit) | `i686-unknown-linux-gnu` | Tested, experimental | Ubuntu 24.04 with multilib, `clingox-sys` and `clingox`. |
+| Linux ARMv7 | `armv7-unknown-linux-gnueabihf` | Tested, experimental, nightly | Cross-compiled and run under qemu-user. Doctests are left out. |
+| macOS ARM64 | `aarch64-apple-darwin` | Tested | macOS 15, whole workspace. |
+| macOS x86_64 | `x86_64-apple-darwin` | Tested | macOS 15 on an Intel runner, whole workspace. |
+| Windows x64 | `x86_64-pc-windows-msvc` | Tested | Windows Server 2025, whole workspace. |
+| Windows ARM64 | `aarch64-pc-windows-msvc` | Tested, experimental | Windows 11 on an ARM64 runner, whole workspace. |
+| Windows x86 (32-bit) | `i686-pc-windows-msvc` | Tested, experimental | Windows Server 2025, `clingox-sys` and `clingox`. |
+| Windows with MinGW | `*-pc-windows-gnu` | Not tested | |
+| FreeBSD 14 | `x86_64-unknown-freebsd` | Tested | A virtual machine on a Linux runner, whole workspace. |
+| NetBSD 10 | `x86_64-unknown-netbsd` | Tested, experimental | A virtual machine, whole workspace, with the system GCC and libstdc++. |
+| OpenBSD 7 | `x86_64-unknown-openbsd` | Tested, experimental | A virtual machine, whole workspace, with the Rust that OpenBSD packages. |
+
+All Windows targets are tested with the MSVC toolchain only. The `-gnu` targets
+may work, but no one has run the suite on them. On Windows, the vendored build
+compiles clingo with `/EHsc`; a clingo installed on the system needs the same (see
+[Installation](../getting-started/installation.md)).
+
+## Mobile
+
+| Platform | Target | Status | How it runs |
+|---|---|---|---|
+| Android x86_64 | `x86_64-linux-android` | Tested | An emulator, API level 34. |
+| Android x86 (32-bit) | `i686-linux-android` | Tested, experimental, nightly | An emulator, API level 30. |
+| Android ARM64 | `aarch64-linux-android` | Built only | See below. |
+| Android ARMv7 | `armv7-linux-androideabi` | Built only, nightly | See below. |
+| iOS simulator | `aarch64-apple-ios-sim` | Tested, experimental | The iPhone simulator on an Apple silicon runner. |
+| iOS devices | `aarch64-apple-ios` | Not tested | |
+
+On Android and iOS the test executables run as plain programs in the emulator or
+simulator, so the doctests of `clingox` are left out. The iOS job also leaves out the
+compile-fail test file, which starts `cargo` and so cannot run inside the simulator.
+
+Android ARM64 and ARMv7 are not tested yet:
+
+- The ARM64 test executables are built in CI. The job that should run them on an
+  ARM64 emulator needs hardware virtualisation (KVM), which the ARM64 runner does
+  not offer, so it stops after checking for it.
+- The ARMv7 test executables are built and copied to the 32-bit x86 emulator, whose
+  ARM translation layer is meant to run them. It does not run them yet.
+
+clingo 5.8 is known to give wrong results on ARM64 devices with Android 11 or
+later, because it stores flags in pointer bits that Android uses for pointer
+tagging. The x86 emulators cannot show this problem. See
+[Known issues](known-issues.md#platforms) before you ship on ARM64 Android.
 
 ## WebAssembly
+
+| Runtime | Target | Status | How it runs |
+|---|---|---|---|
+| Node.js | `wasm32-unknown-emscripten` | Tested | Under Node.js, on Linux. |
+| Chromium | `wasm32-unknown-emscripten` | Tested | Headless, through Playwright, on Linux. |
+| Firefox | `wasm32-unknown-emscripten` | Tested | Headless, through Playwright, on Linux. |
+| WebKit | `wasm32-unknown-emscripten` | Tested | Playwright's WebKit build, headless, on Linux. |
+| Safari | `wasm32-unknown-emscripten` | Not tested | |
+
+The WebKit row is Playwright's build of the WebKit engine on Linux, not Safari.
+Safari on macOS and iOS uses the same engine, but a different build and
+integration, and has not been run. The default WebAssembly build is
+single-threaded, so the tests that need threads (parallel solving, timeouts, async
+solving, moving a control between threads) are skipped there.
+
+## When the jobs run
+
+- On every pull request: Linux x86_64 and ARM64, macOS ARM64, Windows x64, Node.js,
+  the compile-fail tests, and `cargo check` with the minimum supported Rust version.
+- On every push to the main branch, in addition: every other row above except those
+  marked "nightly", and the sanitizers and Miri.
+- Every night, and when started by hand: everything, including Linux ARMv7 and
+  32-bit Android, which take too long to run on every push.
+
+The sanitizer job runs the suite on Linux x86_64 under AddressSanitizer with
+LeakSanitizer, then the thread tests under ThreadSanitizer. Miri runs the unit
+tests and the callback trampolines.
+
+## Building for WebAssembly
 
 clingox targets `wasm32-unknown-emscripten`, which is the target clingo itself
 documents for web builds. The module for a minimal program is about 655 KB

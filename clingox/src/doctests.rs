@@ -6,6 +6,12 @@
 #[doc = include_str!("../../README.md")]
 mod readme {}
 
+#[doc = include_str!("../README.md")]
+mod crate_readme {}
+
+#[doc = include_str!("../../guide/src/introduction.md")]
+mod introduction {}
+
 #[doc = include_str!("../../guide/src/getting-started/installation.md")]
 mod installation {}
 

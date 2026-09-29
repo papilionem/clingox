@@ -623,10 +623,6 @@ jobs:
   # armv7 Linux, cross-compiled and run under qemu-user (nightly only: an
   # emulated run is slow). binfmt lets the tests' child processes start the
   # test binary again; QEMU_LD_PREFIX gives those children the target libc.
-  # Doctests are left out: run through a runner, rustdoc has no environment to
-  # start each one in a process of its own ("will be run in the same process"),
-  # and the examples that take clingo's process-wide state (an application run,
-  # a script registration) then collide. They run natively in the other jobs.
   armv7-qemu:
     name: test (armv7-unknown-linux-gnueabihf, qemu-user)
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -659,7 +655,7 @@ jobs:
           max-size: 600M
           save: ${{ github.ref == 'refs/heads/main' }}
       - run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf qemu-user qemu-user-binfmt
-      - run: cargo test --locked --target armv7-unknown-linux-gnueabihf -p clingox-sys -p clingox --lib --tests
+      - run: cargo test --locked --target armv7-unknown-linux-gnueabihf -p clingox-sys -p clingox
 
   # 32-bit Android on one x86 emulator with KVM: i686-linux-android natively,
   # then armv7-linux-androideabi through the image's ARM translation. That the

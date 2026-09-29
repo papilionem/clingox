@@ -3,3 +3,6 @@ contact_links:
   - name: Report a security vulnerability
     url: https://github.com/papilionem/clingox/security/advisories/new
     about: Crashes, aborts or memory corruption reachable from safe code go through private reporting, not a public issue.
+  - name: Documentation
+    url: https://papilionem.github.io/clingox/
+    about: The guide, with the API reference on docs.rs, answers most questions about using clingox.

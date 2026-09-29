@@ -7,9 +7,7 @@ edition = "2024"
 rust-version = "1.98"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/papilionem/clingox"
-# The guide has no separate site yet, so the homepage is the repository.
-homepage = "https://github.com/papilionem/clingox"
-readme = "README.md"
+homepage = "https://papilionem.github.io/clingox/"
 
 # RULES 11.6. A crate opts in with `[lints] workspace = true`.
 [workspace.lints.rust]

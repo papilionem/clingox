@@ -1,9 +1,18 @@
 [book]
 title = "clingox"
-description = "Rust bindings to clingo, the answer set programming system"
+description = "Rust bindings to clingo 5.8, the answer set programming system: a safe API, facts and models as Rust types, and a vendored build of clingo."
 authors = ["papilionem"]
 language = "en"
 
 [output.html]
+# The guide is served from https://papilionem.github.io/clingox/, and the 404 page
+# needs the prefix to find its styles and links.
+site-url = "/clingox/"
 git-repository-url = "https://github.com/papilionem/clingox"
 edit-url-template = "https://github.com/papilionem/clingox/edit/main/guide/{path}"
+
+[output.html.search]
+enable = true
+limit-results = 20
+boost-title = 2
+boost-hierarchy = 2

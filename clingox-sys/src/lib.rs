@@ -1,14 +1,26 @@
-//! Raw FFI bindings to the clingo 5.8 C API.
+//! Raw FFI bindings to the [clingo](https://potassco.org/clingo/) 5.8 C API, and
+//! the build of clingo itself.
 //!
-//! Every item mirrors a declaration in `clingo.h` under its C name. Nothing here
-//! is safe to use without reading the header's contract; the `clingox` crate is
-//! the safe layer.
+//! This is the low-level crate behind [clingox](https://docs.rs/clingox), which
+//! is the safe API. Every item here mirrors a declaration in `clingo.h` under
+//! its C name, and none of it is safe to call without reading the header's
+//! contract.
 //!
-//! By default clingo is built from the vendored source (feature `vendored`),
-//! with the patches listed in [`PATCHES`] applied to a copy of it. A system
-//! library can be used instead through `CLINGO_LIB_DIR`, `CLINGO_INCLUDE_DIR`,
+//! # Building clingo
+//!
+//! By default clingo 5.8.2 is built from the vendored source (feature
+//! `vendored`), with the patches listed in [`PATCHES`] applied to a copy of it.
+//! The build needs `CMake` and a C++ compiler, and no network. A system library
+//! can be used instead through `CLINGO_LIB_DIR`, `CLINGO_INCLUDE_DIR`,
 //! `CLINGO_STATIC`, `CLINGO_THREADS` and `CLINGOX_SYS_NO_VENDOR`; it must be at
-//! least 5.8.1 and older than 5.9.0, and it gets no patch.
+//! least 5.8.1 and older than 5.9.0, and it gets no patch. The
+//! [installation chapter](https://papilionem.github.io/clingox/getting-started/installation.html)
+//! of the clingox guide describes each variable.
+//!
+//! | Feature | Default | What it does |
+//! |---|---|---|
+//! | `vendored` | yes | Builds clingo from the source in this crate. |
+//! | `threads` | yes | Builds clasp with threads; see [`HAS_THREADS`]. |
 //!
 //! This crate declares `links = "clingo"`, so it cannot share a dependency graph
 //! with Potassco's `clingo-sys`: both would define the same C symbols.

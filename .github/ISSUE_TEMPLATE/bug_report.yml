@@ -43,10 +43,16 @@ body:
     id: program
     attributes:
       label: Minimal program
-      description: The smallest Rust program, and the logic program text if any, that shows the problem.
+      description: The smallest Rust program, and the logic program text if any, that shows the problem. For a build failure, the `[dependencies]` entry is enough.
       render: rust
     validations:
       required: true
+  - type: textarea
+    id: build-log
+    attributes:
+      label: Build log
+      description: For a build failure, the end of the output of `cargo build -vv`, from the first error on.
+      render: text
   - type: textarea
     id: expected
     attributes:

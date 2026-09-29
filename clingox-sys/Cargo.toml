@@ -1,15 +1,15 @@
 [package]
 name = "clingox-sys"
 version = "508.2.0-beta.1"
-description = "Raw FFI bindings to the clingo answer set programming system"
-keywords = ["clingo", "asp", "answer-set-programming", "logic", "solver"]
+description = "Raw FFI bindings to clingo 5.8 and its vendored build, the low-level crate behind clingox"
+keywords = ["clingo", "answer-set-programming", "asp", "ffi", "sys"]
 categories = ["external-ffi-bindings"]
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-readme.workspace = true
+readme = "README.md"
 documentation = "https://docs.rs/clingox-sys"
 links = "clingo"
 build = "build.rs"

@@ -1,10 +1,11 @@
-//! The procedural macros of clingox: `#[derive(ToSymbol)]`,
-//! `#[derive(FromSymbol)]` and `sym!`.
+//! The procedural macros of [clingox](https://docs.rs/clingox):
+//! `#[derive(ToSymbol)]`, `#[derive(FromSymbol)]` and `sym!`.
 //!
-//! Use them through `clingox`, which re-exports each one under the name of its
-//! trait and documents them there. The generated code names clingox only
-//! through `::clingox::__private` and contains no `unsafe`, so it compiles in a
-//! crate that forbids `unsafe_code` (RULES 11.5, DESIGN S18).
+//! Do not depend on this crate directly. clingox re-exports each macro under the
+//! name of its trait, with its `derive` feature (on by default), and documents
+//! the mapping and the `#[clingo(..)]` attributes there. The generated code
+//! names clingox only through `::clingox::__private` and contains no `unsafe`,
+//! so it compiles in a crate that forbids `unsafe_code`.
 
 use proc_macro::TokenStream;
 

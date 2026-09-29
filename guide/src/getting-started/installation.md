@@ -10,7 +10,7 @@ clingox compiles clingo from its C++ source as part of your Rust build. You need
 - **Rust 1.98 or newer.** clingox follows the latest stable release.
 - **CMake 3.10 or newer.** The build script drives clingo's own CMake build.
 - **A C and C++ compiler** that CMake finds, with C++14 support: GCC or Clang on
-  Linux.
+  Linux and the BSDs, Apple's Clang on macOS, and Visual Studio's MSVC on Windows.
 
 Nothing else is required. clingo's parsers are generated ahead of time, so Bison and
 re2c are not needed, and Python and Lua support are switched off.
@@ -26,16 +26,22 @@ The [platform page](../reference/platforms.md) lists which targets are tested.
 
 ## Add the dependency
 
-clingox is not published on crates.io yet. Depend on it through git:
+Add clingox from crates.io:
+
+```sh
+cargo add clingox@508.2.0-beta.1
+```
+
+or write the dependency in `Cargo.toml` yourself:
 
 ```toml
 [dependencies]
-clingox = { git = "https://github.com/papilionem/clingox" }
+clingox = "508.2.0-beta.1"
 ```
 
-Cargo fetches the clingo source, which is a git submodule of the repository, along
-with it. With a local checkout (`git clone --recurse-submodules`), use a path
-dependency instead:
+The published crate contains the clingo source, so the build needs no network. To
+work on clingox itself, clone the repository with `git clone --recurse-submodules`
+(clingo is a git submodule there) and use a path dependency:
 
 ```toml
 [dependencies]

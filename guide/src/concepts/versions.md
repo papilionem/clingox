@@ -33,7 +33,7 @@ Depend on the clingox release whose number names the clingo version you want:
 clingox = "508.2"
 ```
 
-`clingox` and `clingox-sys` always share the same version number.
+`clingox`, `clingox-sys` and `clingox-derive` always share the same version number.
 
 ## Stability
 
@@ -42,6 +42,23 @@ Cargo treats releases that differ only in the patch number as compatible, so wit
 adds. A breaking change waits for a new clingo version. Pre-releases such as
 `508.2.0-beta.1` may still change the API between them, and Cargo does not select
 one unless you name it.
+
+## Deprecation
+
+An item that is going away is first marked `#[deprecated]`, with its replacement in
+the note, and listed under "Deprecated" in the changelog. It is removed only in a
+release that may break the API, which means a new clingo version.
+
+## Minimum supported Rust version
+
+The minimum supported Rust version (MSRV) is 1.98. It is the `rust-version` of all
+three crates, and CI compiles the workspace with that toolchain.
+
+clingox follows the latest stable Rust, so the MSRV rises from time to time. A rise
+is not treated as a breaking change: it can come in any release, and the changelog
+names it. Cargo's resolver takes `rust-version` into account in edition 2024
+projects, so a project on an older toolchain keeps the newest clingox release that
+supports it.
 
 ## Checks
 

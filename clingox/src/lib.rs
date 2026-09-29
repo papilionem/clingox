@@ -1,4 +1,41 @@
-//! Safe, idiomatic Rust bindings to clingo, the answer set programming system.
+//! Safe Rust bindings to [clingo](https://potassco.org/clingo/), the answer set
+//! programming system from the Potassco project.
+//!
+//! Answer set programming (ASP) states a problem as a logic program: facts,
+//! rules and constraints. clingo grounds the program and searches for its
+//! answer sets, each of which is a solution. clingox drives clingo from Rust: it
+//! adds program text and facts, grounds and solves, and reads the answer sets
+//! back, with no `unsafe` in your code. It builds clingo 5.8.2 from vendored
+//! source, with patches for known clingo defects, or links a clingo installed
+//! on the system.
+//!
+//! # Example
+//!
+//! ```
+//! use clingox::prelude::*;
+//!
+//! let mut ctl = Control::new()?;
+//! // Pick exactly one colour, but not red.
+//! ctl.add_base(
+//!     "colour(red; green; blue).
+//!      { pick(C) : colour(C) } = 1.
+//!      :- pick(red).
+//!      #show pick/1.",
+//! )?;
+//! ctl.ground(&[Part::base()])?;
+//!
+//! let (result, models) = ctl.solve_all()?;
+//! assert!(result.is_sat());
+//! let picks: Vec<String> = models
+//!     .iter()
+//!     .flat_map(|model| model.symbols())
+//!     .map(ToString::to_string)
+//!     .collect();
+//! assert_eq!(picks, ["pick(blue)", "pick(green)"]);
+//! # Ok::<(), clingox::Error>(())
+//! ```
+//!
+//! # Where to start
 //!
 //! A [`Control`] holds a logic program. Add program text with
 //! [`Control::add`], ground it with [`Control::ground`], and solve it with
@@ -9,23 +46,56 @@
 //! that lends them one at a time. [`Control::solve_first`],
 //! [`Control::solve_optimal`] and [`Control::solve_all`] return owned copies.
 //!
-//! ```
-//! use clingox::prelude::*;
-//!
-//! let mut ctl = Control::new()?;
-//! ctl.add_base("a :- not b. b :- not a.")?;
-//! ctl.ground(&[Part::base()])?;
-//! assert!(ctl.solve(&[])?.is_sat());
-//! # Ok::<(), clingox::Error>(())
-//! ```
+//! The typed layer converts between Rust values and clingo terms:
+//! [`ToSymbol`](trait@ToSymbol) and [`FromSymbol`](trait@FromSymbol), their
+//! derives, [`Control::add_facts`] and [`Model::atoms`].
 //!
 //! Errors are [`Error`]s; match on [`Error::kind`]. The result alias is
 //! [`clingox::Result`](Result), which the prelude does not export.
 //!
-//! clingox builds and links clingo 5.8.2. A clingo installed on the system is
-//! accepted from 5.8.1 on within 5.8, at build time and again at run time,
-//! where any other version is [`ErrorKind::Version`].
+//! # Modules
+//!
+//! | Module | Contents |
+//! |---|---|
+//! | [`prelude`] | the common types, for `use clingox::prelude::*` |
+//! | [`propagate`] | propagators: custom theories inside the search |
+//! | [`observer`] | watching the ground program as it is built |
+//! | [`backend`] | adding ground rules directly, bypassing the grounder |
+//! | [`ast`] | clingo's syntax trees: parsing and rewriting programs |
+//! | [`application`] | running clingo's own command line with your options |
+//! | [`script`] | custom scripting languages for `#script` blocks |
+//! | [`testing`] | helpers for testing logic programs |
+//!
+//! # Feature flags
+//!
+//! All four are on by default.
+//!
+//! | Feature | What it does |
+//! |---|---|
+//! | `vendored` | Builds clingo 5.8.2 from the source in `clingox-sys`, with its patches. Without it, a system clingo 5.8.1 or newer within 5.8 is linked. |
+//! | `threads` | Builds clingo with threads: parallel solving, timeouts and async solving. Without it, those return [`ErrorKind::Unsupported`]. |
+//! | `derive` | `#[derive(ToSymbol)]`, `#[derive(FromSymbol)]` and [`sym!`](macro@sym). |
+//! | `log` | Forwards clingo's messages to the `log` crate, target `clingox`. |
+//!
+//! # Versions and platforms
+//!
+//! The version number names the clingo release inside: `508.2.x` contains clingo
+//! 5.8.2. A clingo installed on the system is accepted from 5.8.1 on within 5.8,
+//! at build time and again at run time, where any other version is
+//! [`ErrorKind::Version`]. The [versions chapter] explains the scheme and the
+//! MSRV policy, and the [platform page] lists the targets the test suite runs on.
+//!
+//! # Further reading
+//!
+//! [The clingox guide](https://papilionem.github.io/clingox/) teaches the crate
+//! from the first program on, and has pages for readers coming from
+//! [pyclingo](https://papilionem.github.io/clingox/reference/coming-from-pyclingo.html)
+//! or the [`clingo` crate](https://papilionem.github.io/clingox/reference/coming-from-clingo-crate.html).
+//!
+//! [versions chapter]: https://papilionem.github.io/clingox/concepts/versions.html
+//! [platform page]: https://papilionem.github.io/clingox/reference/platforms.html
 
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(unsafe_code)]
 
 #[allow(unsafe_code)]
