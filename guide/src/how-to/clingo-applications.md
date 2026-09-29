@@ -18,7 +18,7 @@ clingo.
 Build an `Application`, set what you want to change, and call `run` with the
 arguments you would type after `clingo`, without the program name:
 
-```rust
+```rust,standalone_crate
 use clingox::application::{Application, exit_code};
 
 let dir = std::env::temp_dir();
@@ -54,7 +54,7 @@ The arguments can be anything that converts to `OsStr`: `&str`, `String`,
 `Path`, `PathBuf`, `OsString`. A path needs no conversion, and text that is not
 valid UTF-8 is refused with `ErrorKind::InvalidInput`:
 
-```rust
+```rust,standalone_crate
 use std::path::PathBuf;
 
 use clingox::application::Application;
@@ -79,7 +79,7 @@ The name and version appear in `--help` and `--version` and in messages. The
 message limit is how many messages clingo reports before it stops (20 by
 default, 0 for none):
 
-```rust
+```rust,standalone_crate
 use clingox::application::Application;
 
 let dir = std::env::temp_dir();
@@ -126,7 +126,7 @@ applied to the control: options such as `--models` and `--opt-mode`, the
 configuration, the statistics summary, the exit code. The closure receives the
 control and the positional arguments (the files):
 
-```rust
+```rust,standalone_crate
 use std::ops::ControlFlow;
 
 use clingox::application::Application;
@@ -197,7 +197,7 @@ its description) and a closure that receives the option's value as a `&str`.
 `validate_options` runs after everything is parsed and can reject the
 combination. Both run on the thread that called `run`, as `main` does:
 
-```rust
+```rust,standalone_crate
 use std::cell::RefCell;
 use std::ops::ControlFlow;
 
@@ -361,7 +361,7 @@ print nothing for that model. It needs a `main`, because clingo crashes when a
 model is read in the printer of an application that has none; without one,
 `run` returns `ErrorKind::InvalidInput` before anything starts.
 
-```rust
+```rust,standalone_crate
 use std::sync::Mutex;
 
 use clingox::application::Application;

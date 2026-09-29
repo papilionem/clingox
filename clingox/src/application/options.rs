@@ -85,7 +85,7 @@ impl<'o> Options<'o> {
     /// An option given twice without [`OptionSpec::multi`] ends the run with
     /// exit code 1 (`multiple occurrences`) after `parse` saw the first value.
     ///
-    /// ```
+    /// ```standalone_crate
     /// use std::cell::RefCell;
     ///
     /// use clingox::application::{Application, OptionSpec};
@@ -164,7 +164,7 @@ impl<'o> Options<'o> {
     ///
     /// The description is shown literally, `%` included.
     ///
-    /// ```
+    /// ```standalone_crate
     /// use clingox::application::{Application, Flag};
     ///
     /// let path = std::env::temp_dir().join(format!("clingox-flag-doc-{}.lp", std::process::id()));

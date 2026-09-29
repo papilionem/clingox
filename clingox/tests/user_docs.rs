@@ -35,12 +35,13 @@ const CHAPTERS_WITH_EXAMPLES: [&str; 6] = [
 
 /// rustdoc runs a code block as Rust when its info string starts with one of
 /// these attributes, even without `rust`.
-const RUSTDOC_ATTRIBUTES: [&str; 5] = [
+const RUSTDOC_ATTRIBUTES: [&str; 6] = [
     "ignore",
     "no_run",
     "compile_fail",
     "should_panic",
     "test_harness",
+    "standalone_crate",
 ];
 
 fn root() -> PathBuf {

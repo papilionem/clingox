@@ -86,6 +86,11 @@ else is refused with a message that says why. 5.8.1 is the first release that cr
 symbols safely from several threads at once, and it has the same C API as 5.8.2, the
 version clingox ships.
 
+On Windows the installed clingo must have been built with `/EHsc`, which a normal
+CMake build does by default. A build without it compiles clingo's exception handling
+without unwinding, and errors that clingo reports through exceptions then hang or
+crash the process.
+
 A system clingo does not get clingox's fixes for known clingo bugs, which are
 applied only to the vendored source. The [known issues](../reference/known-issues.md)
 list what remains there.

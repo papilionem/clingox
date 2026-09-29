@@ -7,10 +7,7 @@
 //! [`Application`](crate::application::Application). From then on every
 //! control in the process, and every run of clingo's command line, sees it.
 //!
-//! The registry freezes once the process creates a control, and WebAssembly runs all doctests in one process, so this example is skipped there.
-//!
-//! ```
-//! # if cfg!(target_family = "wasm") { return Ok(()); }
+//! ```standalone_crate
 //! use std::collections::HashMap;
 //! use std::sync::Mutex;
 //!
@@ -250,10 +247,7 @@ pub trait Script: Send + Sync + 'static {
     ///
     /// # Examples
     ///
-    /// The registry freezes once the process creates a control, and WebAssembly runs all doctests in one process, so this example is skipped there.
-    ///
-    /// ```
-    /// # if cfg!(target_family = "wasm") { return Ok(()); }
+    /// ```standalone_crate
     /// use std::sync::atomic::{AtomicBool, Ordering};
     ///
     /// use clingox::application::{Application, exit_code};
@@ -323,10 +317,7 @@ pub trait Script: Send + Sync + 'static {
 ///
 /// # Examples
 ///
-/// The registry freezes once the process creates a control, and WebAssembly runs all doctests in one process, so this example is skipped there.
-///
-/// ```
-/// # if cfg!(target_family = "wasm") { return Ok(()); }
+/// ```standalone_crate
 /// use clingox::ast::Span;
 /// use clingox::script::{self, Script};
 /// use clingox::{Control, ErrorKind};

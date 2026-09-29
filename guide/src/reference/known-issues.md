@@ -34,6 +34,9 @@ patches, so with one of them these remain:
   recurse: a million-level term parses. Ordinary programs are nowhere near these
   depths; for generated or untrusted input that nests deeply, parse and handle
   the nodes on a thread with a large stack (`std::thread::Builder::stack_size`).
+  On Windows (MSVC) the frames are larger: building and dropping a chain of 100 000
+  nested functions needs more than 128 MiB of stack on x86_64 and more than 32 MiB
+  on i686.
 - **Statistics on several threads.** clasp registers each kind of statistic the
   first time it is used, without a lock, so controls that first solve on several
   threads at once race inside clasp, which can in rare cases read freed memory.

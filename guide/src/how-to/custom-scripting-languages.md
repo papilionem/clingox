@@ -13,10 +13,7 @@ code of one block while the program is parsed. `callable` says which function
 names the script owns, and `call` evaluates one call and returns the values, which
 clingo treats as a pool:
 
-The registry freezes once the process creates a control, and WebAssembly runs all doctests in one process, so this example is skipped there.
-
-```rust
-# if cfg!(target_family = "wasm") { return Ok(()); }
+```rust,standalone_crate
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -132,10 +129,7 @@ the script answers `callable("main")` with true. It receives the same control an
 `Application::main` callback does, with the same limits: it cannot be kept, and
 it is finished when `main` returns. The files are already parsed when it starts.
 
-The registry freezes once the process creates a control, and WebAssembly runs all doctests in one process, so this example is skipped there.
-
-```rust
-# if cfg!(target_family = "wasm") { return Ok(()); }
+```rust,standalone_crate
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use clingox::application::{Application, exit_code};

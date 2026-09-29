@@ -7,7 +7,7 @@
 //! is available: reading files, the many options, solving, printing models and
 //! statistics, and the exit codes in [`exit_code`].
 //!
-//! ```
+//! ```standalone_crate
 //! use clingox::application::{Application, exit_code};
 //!
 //! let path = std::env::temp_dir().join(format!("clingox-app-doc-{}.lp", std::process::id()));
@@ -183,7 +183,7 @@ pub mod exit_code {
 /// from the caller for `'a`, because `run` blocks until clingo and every
 /// thread it started are done with them.
 ///
-/// ```
+/// ```standalone_crate
 /// use clingox::application::Application;
 ///
 /// let path = std::env::temp_dir().join(format!("clingox-app-doc2-{}.lp", std::process::id()));
@@ -293,7 +293,7 @@ impl<'a> Application<'a> {
     /// every brand (`for<'r>`), and why moving the control out with
     /// [`std::mem::replace`] or [`std::mem::swap`] does not compile.
     ///
-    /// ```
+    /// ```standalone_crate
     /// use std::ops::ControlFlow;
     ///
     /// use clingox::application::Application;
@@ -386,7 +386,7 @@ impl<'a> Application<'a> {
     /// [`run`](Application::run) returns that error unchanged. If it panics,
     /// `run` resumes the panic.
     ///
-    /// ```
+    /// ```standalone_crate
     /// use std::cell::RefCell;
     ///
     /// use clingox::application::{Application, OptionSpec};
@@ -474,7 +474,7 @@ impl<'a> Application<'a> {
     /// `--outf=3`, `--mode=gringo` or `--text`, and with `--outf=1` and
     /// `--quiet=1` only for the last model.
     ///
-    /// ```
+    /// ```standalone_crate
     /// use std::sync::Mutex;
     ///
     /// use clingox::application::Application;

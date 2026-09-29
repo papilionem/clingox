@@ -419,7 +419,11 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
   a parsed node aborts with a stack overflow at about 9 000 levels of
   `f(f(...))` (5 000 survives), and about 20 000 levels of `p(-(-(...)))` or
   `p(+(+(...)))` (9 000 survives). Parsing a million-level `f(` term succeeds.
-  `to_string`, `deep_copy`, `==`, `cmp` and `hash` recurse the same way.
+  `to_string`, `deep_copy`, `==`, `cmp` and `hash` recurse the same way. On the
+  MSVC build the recursion is heavier and building and dropping a chain of
+  100 000 single-argument functions is not iterative as it is elsewhere: it needs
+  more than 128 MiB of stack on x86_64 and more than 32 MiB on i686 (measured
+  2026-09-29; 64 MiB was enough on i686).
   Parenthesised nesting such as `((((1))))` creates no nodes and is fine. The
   same shape as the deep theory terms of U27.
 - **Impact:** a process abort, not an error, for input that nests thousands of

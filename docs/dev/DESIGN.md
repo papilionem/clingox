@@ -144,6 +144,15 @@ downstream build being affected (TESTING.md, "Build speed").
   BSD, `c++_shared` on Android, `stdc++` elsewhere, overridable by `CXXSTDLIB`.
 - `pthread` on Unix when `threads` is on, and `atomic` where clasp's CMake asks for it.
 
+**MSVC flags.** The `cmake` crate passes the C++ compiler's flags as
+`CMAKE_CXX_FLAGS`, which replaces CMake's own MSVC defaults, among them `/EHsc`.
+Without `/EHsc` MSVC compiles `try` and `catch` without unwinding, so any exception
+clingo throws and catches internally hangs or crashes the process. `build.rs` adds
+`/EHsc` for MSVC (see the comment there). A system clingo linked on Windows must have
+been built with `/EHsc`, which a normal CMake build does by default. The five
+libraries are linked with `static:-bundle` on MSVC: bundled into the rlib they leave
+it with an empty archive symbol table and every clingo symbol is unresolved.
+
 A static build defines `CLINGO_NO_VISIBILITY` publicly. Binding generation defines
 it too, so Windows symbols are not declared `dllimport`.
 

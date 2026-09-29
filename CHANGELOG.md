@@ -27,6 +27,11 @@ clingo's C API, and the build of clingo itself).
   build scripts see them as `DEP_CLINGO_THREADS` and `DEP_CLINGO_PATCHES`.
   `CLINGO_THREADS` tells the build whether a system clingo has threads. Thread
   support comes from how clingo was built, not from the target.
+- Vendored MSVC builds compile clingo with `/EHsc`. Without it MSVC compiles clingo's
+  `try` and `catch` without unwinding, and any exception clingo throws and catches
+  itself (a syntax error, an error returned from a callback) hung or crashed the
+  process. The MSVC libraries are also linked unbundled, since bundled into the rlib
+  they left it without a symbol table.
 - The vendored build applies small patches (listed below) to a copy of the clingo
   source, never to the submodule. A system library gets none. The patch applier
   also works on a checkout with CRLF line endings.
