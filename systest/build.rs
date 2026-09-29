@@ -38,6 +38,14 @@ fn main() {
         // A Rust tuple built from the three version macros, which are checked
         // on their own; C has no counterpart.
         .skip_const(|c| c.ident() == "CLINGO_VERSION");
+    if env::var("CARGO_CFG_TARGET_ENV").is_ok_and(|env| env == "msvc") {
+        // MSVC gives every C enum the type `int`, where GCC and clang give an
+        // enum without negative values `unsigned int`, which is what bindgen saw
+        // and `bindings.rs` declares. Both are 32 bits wide and clingo's values
+        // are small, so the enums pass and return alike; size and alignment are
+        // still compared.
+        cfg.skip_signededness(|ty| ty.ends_with("_e"));
+    }
     ctest::generate_test(&mut cfg, sys.join("src/lib.rs"), "all.rs")
         .expect("ctest generates the ABI checks");
 }
