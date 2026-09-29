@@ -28,7 +28,7 @@ Two end-to-end solves at the end of the suite are sanity references only.
 | Memory | 31 GiB |
 | OS | Fedora Linux, kernel 7.2.7 |
 | Rust | 1.98.1, `--release` (criterion's `bench` profile), edition 2024 |
-| clingox | 508.2.0-alpha.0, vendored clingo 5.8.2 with clingox's patches, features `derive` and `threads` |
+| clingox | 508.2.0-beta.1, vendored clingo 5.8.2 with clingox's patches, features `derive` and `threads` |
 | `clingo` crate | 0.8.0 with `clingo-sys` 0.7.2, which builds clingo **5.6.2** from source (`static-linking`) |
 | pyclingo | 5.8.2, Python 3.14.7 |
 | criterion | 0.8 |

@@ -1,0 +1,48 @@
+# docs.rs builds with DOCS_RS=1 and no time for a C++ toolchain: clingox-sys must
+# skip the native build then, and rustdoc must work from the committed bindings.
+name: docs.rs
+
+on:
+  pull_request:
+    paths:
+      - "clingox*/**"
+      - ".github/workflows/docs-rs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "clingox*/**"
+      - ".github/workflows/docs-rs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  docs-rs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DOCS_RS: "1"
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      - name: The docs.rs build of each crate, with its docs.rs features
+        run: |
+          cargo doc --no-deps -p clingox-sys --features vendored,threads
+          cargo doc --no-deps -p clingox-derive
+          cargo doc --no-deps -p clingox --no-default-features --features derive,log
+      - name: The native build was skipped
+        run: |
+          if find target -name 'libclasp.a' | grep -q .; then
+            echo "clingo was built although DOCS_RS is set" >&2
+            exit 1
+          fi

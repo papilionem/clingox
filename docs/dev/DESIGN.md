@@ -51,7 +51,7 @@ Every decision below serves one of these. Each has a test that proves it.
 | Errors | one `check()`; error state reset before each call; message copied on the calling thread |
 | Leaks | no safety invariant depends on a guard's `Drop` |
 | Panics | caught in every trampoline; resumed on the caller's thread |
-| First release | `508.2.0`, only when complete. Pre-releases `508.2.0-alpha.N` |
+| First release | `508.2.0-beta.1`, through a release pull request (`docs/dev/RELEASING.md`); `-beta.N` while the API may change |
 
 ## 4. Why our own binding
 
@@ -938,8 +938,9 @@ with KVM.
   - benchmarks (grounding and solving throughput, symbol conversion) compared with
     the last run;
   - Rust beta and nightly; the weekly upstream-release check.
-- **Release:** release-plz with cargo-semver-checks; the full matrix green; publish
-  `clingox-sys`, `clingox-derive`, then `clingox`.
+- **Release:** a release pull request chosen and versioned by the maintainer, the API
+  check (`cargo xtask semver`) and the full CI matrix green; release-plz then publishes
+  `clingox-sys`, `clingox-derive`, then `clingox` (`docs/dev/RELEASING.md`).
 
 | Tests on every PR | Build-only on every PR, tests nightly |
 |---|---|
@@ -1015,9 +1016,12 @@ headless-browser job nightly.
   A change to one crate therefore republishes all three, as Microsoft's `windows`
   crates do. Additive features land in the last number, since the middle one is
   clingo's patch; users who need a feature pin at least that release.
-- **The rule it imposes:** breaking changes to our own Rust API ship only with a new
-  clingo minor version. Until the binding is complete, releases are pre-releases
-  (`508.2.0-alpha.N`), where breaking changes are allowed.
+- **The rule it imposes:** within `508.2.x` no breaking change of our Rust API is
+  allowed, because Cargo treats patch releases as compatible. Breaking changes ship
+  only with a new clingo version, or between pre-releases (`508.2.0-beta.N`), where
+  they are allowed. The maintainer chooses every version: release tooling must not
+  derive one from an API check, because a bumped major would break the encoding.
+  The API check fails a release instead.
 - A clingo patch release maps to our next minor (`508.3.0`). If a patch release ever
   changes the C API (it has not happened; clingo's API breaks so far all came with
   minor releases), there is no free major to move to, because `509` belongs to
@@ -1054,7 +1058,7 @@ headless-browser job nightly.
 ## 12. Decisions and changes
 
 **Decided:**
-1. The first release is `508.2.0`, only once the binding is complete.
+1. The first public release is `508.2.0-beta.1`, made by merging a release pull request.
 2. Versioning follows §10.
 3. All platforms, browsers included, with multi-threading wherever the platform
    allows it.

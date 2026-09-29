@@ -29,6 +29,7 @@ mod child;
 
 use clingox::ast::{self, Ast, Span};
 
+#[cfg(all(unix, target_pointer_width = "64"))]
 const ENTRY: &str = "child_entry";
 
 fn node(name: &str) -> Ast {

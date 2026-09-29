@@ -826,14 +826,16 @@ fn an_override_can_call_walk_before_or_after_its_own_edit() {
 // Depth
 // ---------------------------------------------------------------------------
 
-/// Stack for the deep-recursion threads. 512 MiB on 64-bit targets; a 32-bit
-/// process has 2 to 4 GiB of address space in all, so 128 MiB there, which is
-/// still more than clingo needs at these depths (8 to 64 MB at depth 100 000
-/// on 64-bit, whose frames are larger).
+/// Stack for the deep-recursion threads. 512 MiB on 64-bit targets. A 32-bit
+/// process has 2 to 4 GiB of address space in all, so 256 MiB there: the walk
+/// of an unoptimised build takes about 4 KiB of stack per level on i686 (a
+/// 50,000-level chain overflowed 128 MiB and fitted in 200 MiB), well above
+/// what clingo itself needs at these depths (8 to 64 MB at depth 100 000 on
+/// 64-bit, whose frames are larger).
 const DEEP_STACK: usize = if cfg!(target_pointer_width = "64") {
     512 << 20
 } else {
-    128 << 20
+    256 << 20
 };
 
 /// `walk` recurses like pyclingo's `Transformer`, so it must not be the

@@ -54,6 +54,14 @@ fn poisoned(ctl: &Control) -> bool {
 const CLASP_SIDE_FAILURE: &str =
     "asp 1 0 0\n1 0 1 1 0 0\n4 1 a 1 1\n1 0 1 2 0 1 -2147483648\n1 0 1 3 0 0\n4 1 c 1 3\n0\n";
 
+// The literal makes clingo grow its tables in proportion to it before it reports
+// the range error (UPSTREAM-ISSUES U22): about 19 GB on 64-bit, more than the
+// whole address space of a 32-bit process, which then aborts on its next
+// allocation. The other tests of this file cover the poisoning on 32-bit.
+#[cfg_attr(
+    target_pointer_width = "32",
+    ignore = "clingo exhausts a 32-bit address space on this literal (U22)"
+)]
 #[test]
 fn a_clasp_side_load_aspif_failure_poisons_the_control() {
     let dir = scratch_dir("load_aspif_failures_clasp_side");

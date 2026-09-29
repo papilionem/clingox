@@ -33,6 +33,10 @@ commands:
                   bindings, generated AST layer, submodule, deny, unsafe budget, guide and package
                   checks
   test linux      cargo test --workspace on the host, including systest
+  test compile-fail
+                  the trybuild tests of clingox, on the Rust release their
+                  snapshots are made with (xtask/compile-fail-toolchain); the
+                  other test commands skip them when CLINGOX_SKIP_COMPILE_FAIL is set
   test android    run the tests on the running x86_64 Android emulator
   test wasm       run the tests for wasm32-unknown-emscripten under Node.js
   test wasm --browser <chromium|firefox|webkit|all> [--timeout <seconds>]
@@ -48,7 +52,8 @@ commands:
                   ThreadSanitizer (nightly, Linux x86_64)
   semver [--baseline-rev <rev>]
                   cargo semver-checks for the three crates against <rev>, or
-                  the tag in xtask/semver-baseline
+                  the tag in xtask/semver-baseline (skipped while that tag
+                  does not exist)
   setup miri      install nightly Rust with Miri
   setup sanitize  install nightly Rust with the standard library source
   setup wasm      install the emsdk version pinned in xtask/emsdk-version
@@ -70,6 +75,7 @@ fn main() -> ExitCode {
         ["ast-codegen"] => ast_codegen::write(),
         ["check"] => check::run(),
         ["test", "linux"] => test::linux(),
+        ["test", "compile-fail"] => test::compile_fail(),
         ["test", "android"] => test::android(),
         ["test", "wasm", options @ ..] => test::wasm(options),
         ["test", "all"] => test::all(),

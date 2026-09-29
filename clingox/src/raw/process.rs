@@ -176,6 +176,14 @@ impl Containment {
     /// Flushes the output buffers and saves the signal dispositions. If the
     /// dispositions cannot be read nothing has changed yet, and the flag is
     /// released on return.
+    #[cfg_attr(
+        not(unix),
+        expect(
+            clippy::unnecessary_wraps,
+            reason = "only the Unix path can fail to read the signal dispositions; \
+                      the signature is shared with it"
+        )
+    )]
     pub(crate) fn enter(flag: RunFlag) -> Result<Self, Error> {
         flush_all();
         #[cfg(unix)]
@@ -218,6 +226,13 @@ impl Containment {
         }
     }
 
+    #[cfg_attr(
+        not(unix),
+        expect(
+            clippy::unused_self,
+            reason = "there are no signal dispositions to put back off Unix"
+        )
+    )]
     fn restore(&mut self) -> Option<i32> {
         #[cfg(unix)]
         {

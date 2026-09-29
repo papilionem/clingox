@@ -126,8 +126,10 @@ touched.
 
 ### 1.9 Update the version and the documents
 
-- Set the new version in `[workspace.package]` (all crates share it) and the `=`
-  dependency requirements between them.
+- The release pull request (`docs/dev/RELEASING.md`) sets the version of the three
+  crates and the `=` requirements between them, by the rule of 1.1. Within `508.2.x`
+  no breaking change of the Rust API is allowed; a change that breaks it waits for
+  the next clingo version.
 - System library range in `clingox-sys/build.rs` and DESIGN §5.1.
 - README version table, DESIGN §1 target line, COVERAGE.md header.
 - Changelog: the clingo version, the API changes found in 1.4, new wrappers, and
@@ -162,6 +164,8 @@ The MSRV is the latest stable Rust (DESIGN §8.3).
 3. Run `cargo xtask check` and the full test suite.
 4. Regenerate the trybuild `.stderr` files if compiler messages changed, and review
    the diff: a changed message is fine, a case that now compiles is a regression.
+   Do it on the new release with `rust-src` installed, then set the release in
+   `xtask/compile-fail-toolchain` to it, in the same commit.
 5. Changelog: "MSRV raised to 1.x".
 
 ## 4. Dependencies

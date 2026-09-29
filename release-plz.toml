@@ -1,0 +1,34 @@
+[workspace]
+# The changelog is written by hand (Keep a Changelog) and the release pull request
+# renames its Unreleased section (scripts/release/prepare.sh).
+changelog_update = false
+# `release-plz release` publishes only when the commit is the merge of a pull request
+# from a branch named `release-plz-*`. It then publishes exactly the version that is
+# committed in the manifests; it never chooses or bumps a version. Our number encodes
+# the clingo version, so the maintainer sets it and `release-pr` is not used.
+release_always = false
+# Only `release-pr` reads this; the API check that fails a release runs in the
+# release workflow (`cargo xtask semver`) and in CI.
+semver_check = false
+git_release_enable = false
+git_tag_name = "v{{ version }}"
+publish_timeout = "30m"
+
+[[package]]
+name = "clingox"
+
+[[package]]
+name = "clingox-sys"
+git_tag_enable = false
+
+[[package]]
+name = "clingox-derive"
+git_tag_enable = false
+
+[[package]]
+name = "systest"
+release = false
+
+[[package]]
+name = "xtask"
+release = false

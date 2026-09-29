@@ -287,8 +287,18 @@ fn build_vendored(target: &Target) {
         });
 
     println!("cargo::rustc-link-search=native={}", lib_dir.display());
+    // On MSVC the libraries are not bundled into the rlib: bundled, they leave
+    // the rlib with an empty archive symbol table (`dumpbin /linkermember`
+    // lists no public symbols), and every clingo symbol is then unresolved at
+    // the final link. Unbundled, `link.exe` reads the `.lib` files itself from
+    // the search path above.
+    let kind = if target.env == "msvc" {
+        "static:-bundle"
+    } else {
+        "static"
+    };
     for lib in LIBS {
-        println!("cargo::rustc-link-lib=static={lib}");
+        println!("cargo::rustc-link-lib={kind}={lib}");
     }
     link_cxx_runtime(target);
     if threads && target.is_unix() && target.os != "android" && !target.is_emscripten() {

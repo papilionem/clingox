@@ -4,7 +4,10 @@
 //! The release type is fixed to `minor`, so a breaking change is reported
 //! whatever the pre-release version strings say. The baseline is
 //! `--baseline-rev <rev>` when given, otherwise the tag named in
-//! `xtask/semver-baseline`.
+//! `xtask/semver-baseline`: either a tag name, or `latest` for the newest
+//! release tag (`vX.Y.Z`, or a `-beta.N` or `-rc.N` pre-release; an alpha is none). A repository without such a tag
+//! has no baseline yet, and both `cargo xtask check` and `cargo xtask semver` skip
+//! the step with a note; an explicit `--baseline-rev` that does not resolve still fails.
 //!
 //! The baseline is extracted with `git archive`, which leaves out the clingo
 //! submodule, so the submodule of this checkout is linked into it when both
@@ -37,24 +40,22 @@ const BASELINE_FILE: &str = "xtask/semver-baseline";
 const ALLOW_FILE: &str = "xtask/semver-allow";
 
 pub(crate) fn run(baseline: Option<&str>) -> Result<()> {
-    let baseline = match baseline {
-        Some(rev) => rev.to_owned(),
-        None => baseline_tag()?,
-    };
-    check(&baseline)
+    match baseline {
+        Some(rev) => check(rev),
+        None => check_step(),
+    }
 }
 
 /// The step of `cargo xtask check`: the check against the tag in
 /// `xtask/semver-baseline`, or a note while that tag does not exist yet.
 pub(crate) fn check_step() -> Result<()> {
-    let tag = baseline_tag()?;
-    if !tag_exists(&tag) {
+    let Some(tag) = resolve(&baseline_tag()?) else {
         eprintln!(
-            "check: semver skipped: the baseline tag {tag} does not exist yet \
-             (it is created when the first alpha is tagged)"
+            "check: semver skipped: no baseline release tag exists in this repository yet \
+             (the first release creates it)"
         );
         return Ok(());
-    }
+    };
     check(&tag)
 }
 
@@ -237,6 +238,59 @@ fn baseline_tag() -> Result<String> {
         .ok_or_else(|| format!("{BASELINE_FILE} names no tag").into())
 }
 
+/// The tag a baseline name stands for: `latest` is the newest release tag,
+/// anything else must be an existing tag.
+fn resolve(name: &str) -> Option<String> {
+    if name != "latest" {
+        return tag_exists(name).then(|| name.to_owned());
+    }
+    let tags = output(
+        Command::new("git")
+            .current_dir(root())
+            .args(["tag", "--list", "v*"]),
+    )
+    .ok()?;
+    tags.lines()
+        .map(str::trim)
+        .filter_map(|t| release_key(t).map(|key| (key, t)))
+        .max()
+        .map(|(_, tag)| tag.to_owned())
+}
+
+/// The ordering key of a release tag `vMAJOR.MINOR.PATCH[-beta.N | -rc.N]`, or
+/// `None` for any other tag (an alpha is no baseline). A release sorts above
+/// its own pre-releases, which sort by kind and number.
+fn release_key(tag: &str) -> Option<([u64; 3], (u8, u64))> {
+    let rest = tag.strip_prefix('v')?;
+    let (version, pre) = match rest.split_once('-') {
+        Some((v, p)) => (v, Some(p)),
+        None => (rest, None),
+    };
+    let mut numbers = version.split('.').map(|p| {
+        if p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        p.parse::<u64>().ok()
+    });
+    let core = [numbers.next()??, numbers.next()??, numbers.next()??];
+    if numbers.next().is_some() {
+        return None;
+    }
+    let pre = match pre {
+        None => (u8::MAX, 0),
+        Some(p) => {
+            let (kind, n) = p.split_once('.')?;
+            let rank = match kind {
+                "beta" => 1,
+                "rc" => 2,
+                _ => return None,
+            };
+            (rank, n.parse().ok()?)
+        }
+    };
+    Some((core, pre))
+}
+
 fn tag_exists(tag: &str) -> bool {
     output(
         Command::new("git")
@@ -267,6 +321,22 @@ mod tests {
             ]
         );
         assert!(findings("Summary no semver update required\n").is_empty());
+    }
+
+    #[test]
+    fn only_release_tags_are_baselines_and_a_release_beats_its_betas() {
+        let key = release_key;
+        assert!(key("v508.2.0").is_some());
+        assert!(key("v508.2.0-beta.1").is_some());
+        assert!(key("v508.2.0-alpha.1").is_none());
+        assert!(key("v508.2").is_none());
+        assert!(key("508.2.0").is_none());
+        assert!(key("v508.2.x").is_none());
+        assert!(key("v508.2.0-beta.2") > key("v508.2.0-beta.1"));
+        assert!(key("v508.2.0-beta.10") > key("v508.2.0-beta.9"));
+        assert!(key("v508.2.0") > key("v508.2.0-rc.1"));
+        assert!(key("v508.2.1-beta.1") > key("v508.2.0"));
+        assert!(key("v508.10.0") > key("v508.9.0"));
     }
 
     #[test]

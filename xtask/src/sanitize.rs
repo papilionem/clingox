@@ -98,6 +98,7 @@ pub(crate) fn run_all() -> Result<()> {
         return Err("`cargo xtask sanitize` runs on a Linux x86_64 host only".into());
     }
     ensure_nightly()?;
+    ensure_symbolizer()?;
     address()?;
     thread()?;
     eprintln!("sanitize: the address, leak and thread sanitizers found nothing");
@@ -118,6 +119,27 @@ fn address() -> Result<()> {
         cmd.args(["--test", &test]);
     }
     run(&mut cmd)
+}
+
+/// Fails unless `llvm-symbolizer` is on `PATH`. `ThreadSanitizer` names the
+/// global that a race touches only through it, and the suppression of the
+/// race on clasp's shared `trueAtom_g` matches that name: without the tool the
+/// same race is reported as an unnamed one and fails the run, which reads as a
+/// new race and is not one.
+fn ensure_symbolizer() -> Result<()> {
+    let found = std::env::var_os("PATH").is_some_and(|path| {
+        std::env::split_paths(&path).any(|dir| dir.join("llvm-symbolizer").is_file())
+    });
+    if found {
+        Ok(())
+    } else {
+        Err(
+            "`llvm-symbolizer` is not on PATH; ThreadSanitizer needs it to match the \
+             suppressions that name a global (install LLVM's tools, e.g. the `llvm` \
+             package)"
+                .into(),
+        )
+    }
 }
 
 /// The thread tests, with the suppressions for clasp's known races.

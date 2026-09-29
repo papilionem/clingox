@@ -1,6 +1,6 @@
 [package]
 name = "clingox"
-version = "508.2.0-alpha.0"
+version = "508.2.0-beta.1"
 description = "Safe, idiomatic Rust bindings to the clingo answer set programming system"
 keywords = ["clingo", "asp", "answer-set-programming", "logic", "solver"]
 categories = ["api-bindings", "science", "algorithms"]
@@ -15,14 +15,13 @@ documentation = "https://docs.rs/clingox"
 # submodule) to run, so the package leaves them out; see
 # tests/conformance/README.md.
 exclude = ["/tests/"]
-publish = false  # not published to crates.io at present
 
 [lints]
 workspace = true
 
 [dependencies]
-clingox-derive = { path = "../clingox-derive", version = "=508.2.0-alpha.0", optional = true }
-clingox-sys = { path = "../clingox-sys", version = "=508.2.0-alpha.0", default-features = false }
+clingox-derive = { path = "../clingox-derive", version = "=508.2.0-beta.1", optional = true }
+clingox-sys = { path = "../clingox-sys", version = "=508.2.0-beta.1", default-features = false }
 log = { version = "0.4.34", optional = true }
 
 [features]

@@ -121,7 +121,13 @@ Upstream items that are not ported are listed in
   - moving a `Control` to another thread.
 
   The `.stderr` files are regenerated only on the pinned toolchain
-  (`TRYBUILD=overwrite`), and the diff is reviewed.
+  (`TRYBUILD=overwrite`), and the diff is reviewed. The pin is the release in
+  `xtask/compile-fail-toolchain`, installed with the `rust-src` component: rustc
+  words its errors differently from release to release, and quotes the standard
+  library only when it has the source. `cargo xtask test compile-fail` checks both
+  and runs the tests. Setting `CLINGOX_SKIP_COMPILE_FAIL` (to any value) makes the
+  two trybuild tests return at once, saying so; CI sets it in every job except the
+  one that runs `test compile-fail`, and `test compile-fail` clears it.
 - **Panic safety.** For each callback kind (ground function, model loop, logger,
   solve events, observer, propagator, AST parse), a test panics inside the callback
   and checks three things: the panic or error reaches the caller, the process did
@@ -141,7 +147,9 @@ Upstream items that are not ported are listed in
   links only with the runtime rustc brings. Each sanitizer has its own target
   directory under `target/`. ThreadSanitizer reads `xtask/tsan-suppressions.txt`,
   which names only clasp's known races (UPSTREAM-ISSUES U11 and U12, DESIGN S12),
-  never clingox or Rust code. Any report fails the command. It runs on a Linux
+  never clingox or Rust code. It needs `llvm-symbolizer` on `PATH` (the `llvm`
+  package): without it ThreadSanitizer cannot name the global a race touches, and
+  the suppression of the race on `trueAtom_g` does not apply. Any report fails the command. It runs on a Linux
   x86_64 host and installs nightly with `rust-src` if it is missing
   (`cargo xtask setup sanitize`).
 
@@ -160,7 +168,8 @@ runs.
 |---|---|
 | `cargo xtask check` | fmt, clippy, doc, `cargo deny`, the stale-bindings check, the conformance recount (below), the unsafe budget, the semver check once its baseline tag exists, the guide build, and the doctests of rustdoc, the guide and the README |
 | `cargo xtask conformance-count` | recounts the conformance inventory from the submodule and checks it against `tests/conformance/NOT_PORTED.md`; `--old-unit` prints the totals under the earlier counting unit for comparison, without failing |
-| `cargo xtask test linux` | the full suite on the host, including systest and trybuild |
+| `cargo xtask test linux` | the full suite on the host, including systest and trybuild (unless `CLINGOX_SKIP_COMPILE_FAIL` is set) |
+| `cargo xtask test compile-fail` | the trybuild tests, after checking that rustc is the release in `xtask/compile-fail-toolchain` and has `rust-src` |
 | `cargo xtask test android` | builds with `cargo ndk` for `x86_64-linux-android`, pushes the test binaries to the running emulator with `adb`, and runs them |
 | `cargo xtask test wasm` | builds for `wasm32-unknown-emscripten` and runs the suite under Node.js |
 | `cargo xtask test wasm --browser <engine>` | the same tests in a headless browser through Playwright: `chromium`, `firefox`, `webkit`, or `all` |
@@ -168,7 +177,7 @@ runs.
 | `cargo xtask setup browser` | installs the Playwright tooling and browsers |
 | `cargo xtask sanitize` | ASan+LSan, then TSan on the thread tests (nightly, see section 5) |
 | `cargo xtask miri` | unit tests and trampolines under Miri |
-| `cargo xtask semver [--baseline-rev <rev>]` | `cargo semver-checks` for the three crates against `<rev>` or the tag in `xtask/semver-baseline`, with the release type fixed to minor so that every breaking change is reported. Findings that are breaking for the tool but source-compatible by design are listed one by one in `xtask/semver-allow` (lint name, item path, reason); the step fails on an unlisted finding and on a listed entry that no longer occurs |
+| `cargo xtask semver [--baseline-rev <rev>]` | `cargo semver-checks` for the three crates against `<rev>` or the baseline in `xtask/semver-baseline` (`latest`: the newest release tag; `cargo xtask check` skips the step while the repository has none), with the release type fixed to minor so that every breaking change is reported. Findings that are breaking for the tool but source-compatible by design are listed one by one in `xtask/semver-allow` (lint name, item path, reason); the step fails on an unlisted finding and on a listed entry that no longer occurs |
 
 **Android** needs an emulator running (`emulator -avd <name>`), with KVM for speed.
 The x86_64 emulator image runs the tests; `aarch64-linux-android` is built but not

@@ -1,0 +1,10 @@
+# The Rust release the trybuild snapshots (clingox/tests/ui/*.stderr) are made
+# with. rustc words its diagnostics differently from release to release, and it
+# shows excerpts of the standard library only when the `rust-src` component is
+# installed, so the snapshots match exactly one setup: this release, with
+# rust-src. `cargo xtask test compile-fail` checks both and runs the tests; CI
+# runs it in one job on this toolchain and sets CLINGOX_SKIP_COMPILE_FAIL in
+# every other job. To move the pin, install the new release with rust-src, run
+# the tests with TRYBUILD=overwrite, review the diff, and change the version
+# below in the same commit.
+1.98.1

@@ -1,6 +1,6 @@
 [package]
 name = "clingox-derive"
-version = "508.2.0-alpha.0"
+version = "508.2.0-beta.1"
 description = "Derive macros and the sym! macro for clingox"
 keywords = ["clingo", "asp", "answer-set-programming", "derive"]
 categories = ["development-tools::procedural-macro-helpers"]
@@ -11,7 +11,6 @@ repository.workspace = true
 homepage.workspace = true
 readme.workspace = true
 documentation = "https://docs.rs/clingox-derive"
-publish = false  # not published to crates.io at present
 
 [lib]
 proc-macro = true

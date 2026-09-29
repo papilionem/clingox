@@ -40,6 +40,10 @@ env:
   CARGO_NET_RETRY: "10"
   RUSTUP_MAX_RETRIES: "10"
   RUST_BACKTRACE: "1"
+  # The trybuild snapshots are exact rustc output for one release with the
+  # `rust-src` component (xtask/compile-fail-toolchain). Every job leaves the
+  # tests out except `compile-fail`, which runs them on that setup.
+  CLINGOX_SKIP_COMPILE_FAIL: "1"
 
 defaults:
   run:
@@ -246,6 +250,38 @@ jobs:
           save: ${{ github.ref == 'refs/heads/main' }}
       # `cargo test --workspace` on the host, including systest and trybuild.
       - run: cargo xtask test linux
+
+  # The trybuild tests, on the Rust release their snapshots are made with and
+  # with `rust-src`; `cargo xtask test compile-fail` checks both. The other
+  # jobs skip them (CLINGOX_SKIP_COMPILE_FAIL above), because a different
+  # release words its errors differently.
+  compile-fail:
+    name: compile-fail (pinned rustc)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CLINGOX_SYS_CCACHE: auto
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      # The version is read from xtask/compile-fail-toolchain, so it is stated once.
+      - id: pinned
+        run: echo "version=$(grep -v '^#' xtask/compile-fail-toolchain | head -n 1 | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: ${{ steps.pinned.outputs.version }}
+          components: rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: hendrikmuhs/ccache-action@f09c25b45002a07be2955cbe52e8cee55643f89d # v1.2.24
+        with:
+          key: ${{ github.job }}
+          max-size: 600M
+          save: ${{ github.ref == 'refs/heads/main' }}
+      - run: cargo xtask test compile-fail
 
   wasm-node:
     name: test (wasm32-unknown-emscripten, Node.js)
@@ -757,7 +793,9 @@ jobs:
           max-size: 800M
           save: ${{ github.ref == 'refs/heads/main' }}
       # xtask compiles clingo with clang for the instrumented builds.
-      - run: sudo apt-get update && sudo apt-get install -y clang
+      # ThreadSanitizer needs llvm-symbolizer to name the global a race
+      # touches, which the suppressions for clasp's known races match on.
+      - run: sudo apt-get update && sudo apt-get install -y clang llvm
       # ThreadSanitizer aborts at start-up ("unexpected memory mapping") on
       # runner kernels whose ASLR uses more than 28 bits of mmap entropy.
       - run: sudo sysctl -w vm.mmap_rnd_bits=28
@@ -814,7 +852,7 @@ jobs:
           cpu: 4
           sync: rsync
           copyback: false
-          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUSTUP_MAX_RETRIES RUST_BACKTRACE
+          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUSTUP_MAX_RETRIES RUST_BACKTRACE CLINGOX_SKIP_COMPILE_FAIL
           prepare: |
             set -eu
             pkg install -y cmake ninja curl ca_root_nss
@@ -844,7 +882,7 @@ jobs:
           cpu: 4
           sync: rsync
           copyback: false
-          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUSTUP_MAX_RETRIES RUST_BACKTRACE
+          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUSTUP_MAX_RETRIES RUST_BACKTRACE CLINGOX_SKIP_COMPILE_FAIL
           prepare: |
             set -eu
             /usr/sbin/pkg_add cmake ninja-build curl mozilla-rootcerts-openssl
@@ -877,7 +915,7 @@ jobs:
           cpu: 4
           sync: rsync
           copyback: false
-          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUST_BACKTRACE
+          envs: CARGO_TERM_COLOR CARGO_INCREMENTAL CARGO_NET_RETRY RUST_BACKTRACE CLINGOX_SKIP_COMPILE_FAIL
           # rustup has no OpenBSD host, so the packaged Rust is used. It can be
           # older than rust-version, hence --ignore-rust-version: a build that
           # then fails on a missing language feature is the finding.
@@ -906,6 +944,7 @@ jobs:
       - deny
       - semver
       - test
+      - compile-fail
       - wasm-node
       - test-extra
       - ios

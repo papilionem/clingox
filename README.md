@@ -27,8 +27,8 @@ symbolic atoms, theory atoms, the backend, ground program observers, solve event
 time budgets, async solving, propagators, the AST (syntax trees), clingo's own
 application layer (`Application`), custom scripting languages, and the typed layer.
 The six functions left out, and why, are listed in
-[`docs/dev/COVERAGE.md`](docs/dev/COVERAGE.md). Until the first release, versions are
-pre-releases (`508.2.0-alpha.N`), and the API may change between them.
+[`docs/dev/COVERAGE.md`](docs/dev/COVERAGE.md). The first public release is `508.2.0-beta.1`; pre-releases (`-beta.N`) may still
+change the API between them.
 
 ## Why clingox
 
@@ -222,6 +222,10 @@ clingo changes its API in minor releases, so each clingo minor version is a new
 major version here, and `cargo update` never moves you across one. To use another
 clingo version, pick the clingox release whose number names it. The three crates
 always share the same number.
+
+Within `508.2.x` the Rust API has no breaking change, because Cargo treats patch
+releases as compatible. A breaking change waits for a new clingo version or happens
+between pre-releases.
 
 ## Platforms
 

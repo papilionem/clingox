@@ -21,6 +21,59 @@ pub(crate) fn linux() -> Result<()> {
     run(cargo().args(["test", "--workspace"]))
 }
 
+/// The file naming the Rust release the trybuild snapshots are made with.
+const COMPILE_FAIL_TOOLCHAIN: &str = "xtask/compile-fail-toolchain";
+
+/// The environment variable that makes the trybuild tests of `clingox` skip
+/// themselves (see `clingox/tests/compile_fail.rs`).
+const COMPILE_FAIL_SKIP: &str = "CLINGOX_SKIP_COMPILE_FAIL";
+
+/// The trybuild tests, on the toolchain their snapshots were made with: the
+/// release in [`COMPILE_FAIL_TOOLCHAIN`] with the `rust-src` component. Any
+/// other setup fails here with the reason, rather than with a page of
+/// snapshot differences.
+pub(crate) fn compile_fail() -> Result<()> {
+    let pinned = std::fs::read_to_string(root().join(COMPILE_FAIL_TOOLCHAIN))?;
+    let pinned = pinned
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with('#'))
+        .ok_or_else(|| format!("{COMPILE_FAIL_TOOLCHAIN} names no version"))?;
+    let rustc = std::env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let version = output(Command::new(&rustc).arg("--version"))?;
+    let release = version.split_whitespace().nth(1).unwrap_or_default();
+    if release != pinned {
+        return Err(format!(
+            "the trybuild snapshots are made with rustc {pinned}, but this is `{}`; \
+             use `rustup run {pinned} cargo xtask test compile-fail`, or set \
+             {COMPILE_FAIL_SKIP}=1 to leave the tests out",
+            version.trim()
+        )
+        .into());
+    }
+    let sysroot = output(Command::new(&rustc).args(["--print", "sysroot"]))?;
+    if !Path::new(sysroot.trim())
+        .join("lib/rustlib/src/rust/library")
+        .is_dir()
+    {
+        return Err(format!(
+            "the trybuild snapshots quote the standard library, which rustc does only with \
+             the rust-src component: `rustup component add rust-src --toolchain {pinned}`"
+        )
+        .into());
+    }
+    run(cargo()
+        .args([
+            "test",
+            "--locked",
+            "-p",
+            "clingox",
+            "--test",
+            "compile_fail",
+        ])
+        .env_remove(COMPILE_FAIL_SKIP))
+}
+
 /// Runs the Linux, Android and WASM suites at the same time: each as its own
 /// invocation of `cargo xtask test <suite>`, so `test all` runs exactly the
 /// commands `test linux`/`test android`/`test wasm` run on their own (same
