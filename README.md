@@ -169,9 +169,9 @@ from [the clingo crate][from-crate] and from [pyclingo][from-pyclingo].
   wrapped functions (`clingo_symbol_create_id` and the two `is_negative` calls), two
   are covered by Rust types (`clingo_error_string`, `clingo_warning_string`), and one
   returns a C++ object (`clingo_control_clasp_facade`). The reasons are in COVERAGE.
-- **Some platforms are not tested.** Android on ARM (ARM64 and ARMv7) is built in
-  CI but its tests are not run yet. iOS devices, Safari and the Windows `-gnu`
-  targets are not tested. clingo 5.8 is known to give wrong results on ARM64
+- **Some platforms are not tested.** Android ARM64 is built in CI but its tests
+  are not run yet (Android ARMv7 runs them under the x86 emulator's ARM
+  translation). iOS devices, Safari and the Windows `-gnu` targets are not tested. clingo 5.8 is known to give wrong results on ARM64
   Android 11 and later; see [known issues][known-issues].
 - **Some upstream defects remain.** Where clingox cannot patch (a system clingo) or a
   defect is inside clasp's design, it is documented, worked around or refused. The

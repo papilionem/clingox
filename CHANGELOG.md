@@ -7,6 +7,8 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
+## [508.2.0-beta.1] - 2026-09-30
+
 The first public release: safe bindings to clingo 5.8.2, covering 248 of its 254
 C functions, with a vendored build that patches eight clingo defects.
 
@@ -137,9 +139,9 @@ clingo's C API, and the build of clingo itself).
 
 - The test suite runs in CI on Linux (x86_64, ARM64, 32-bit x86, ARMv7 under qemu),
   macOS (ARM64 and x86_64), Windows with MSVC (x64, ARM64, 32-bit x86), FreeBSD,
-  NetBSD and OpenBSD, on Android emulators (x86_64 and 32-bit x86), the iOS
-  simulator, and WebAssembly under Node.js, Chromium, Firefox and WebKit. Android on
-  ARM is built but not yet run. The guide's
+  NetBSD and OpenBSD, on Android emulators (x86_64 and 32-bit x86, and ARMv7 through
+  the emulator's ARM translation), the iOS simulator, and WebAssembly under Node.js,
+  Chromium, Firefox and WebKit. Android ARM64 is built but not yet run. The guide's
   [platform page](https://papilionem.github.io/clingox/reference/platforms.html)
   says what each job runs and which are experimental.
 - `cargo xtask` runs the checks: lints, the `unsafe` budget, the guide build and

@@ -52,7 +52,7 @@ compiles clingo with `/EHsc`; a clingo installed on the system needs the same (s
 | Android x86_64 | `x86_64-linux-android` | Tested | An emulator, API level 34. |
 | Android x86 (32-bit) | `i686-linux-android` | Tested, experimental, nightly | An emulator, API level 30. |
 | Android ARM64 | `aarch64-linux-android` | Built only | See below. |
-| Android ARMv7 | `armv7-linux-androideabi` | Built only, nightly | See below. |
+| Android ARMv7 | `armv7-linux-androideabi` | Tested, experimental, nightly | The 32-bit x86 emulator's ARM translation, API level 30. See below. |
 | iOS simulator | `aarch64-apple-ios-sim` | Tested, experimental | The iPhone simulator on an Apple silicon runner. |
 | iOS devices | `aarch64-apple-ios` | Not tested | |
 
@@ -60,15 +60,15 @@ On Android and iOS the test executables run as plain programs in the emulator or
 simulator, so the doctests of `clingox` are left out. The iOS job also leaves out the
 compile-fail test file, which starts `cargo` and so cannot run inside the simulator.
 
-Android ARM64 and ARMv7 are not tested yet:
+Android ARM64 is not tested yet. Its test executables are built in CI, but the job
+that should run them on an ARM64 emulator needs hardware virtualisation (KVM), which
+the ARM64 runner does not offer, so the job fails after checking for it (it is
+experimental, so the run stays green).
 
-- The ARM64 test executables are built in CI. The job that should run them on an
-  ARM64 emulator needs hardware virtualisation (KVM), which the ARM64 runner does
-  not offer, so the job fails after checking for it (it is experimental, so the run
-  stays green).
-- The ARMv7 test executables are built and copied to the 32-bit x86 emulator, whose
-  ARM translation layer is meant to run them. It does not run them yet, and the
-  job fails at that step.
+The ARMv7 test executables run on the 32-bit x86 emulator through its ARM
+translation layer, with the C++ runtime linked statically into each executable.
+This exercises the ARMv7 build of clingo and clingox, but under translation, not on
+ARM hardware.
 
 clingo 5.8 is known to give wrong results on ARM64 devices with Android 11 or
 later, because it stores flags in pointer bits that Android uses for pointer
