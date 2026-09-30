@@ -710,6 +710,12 @@ jobs:
       - name: Build both sets of test executables
         run: |
           .github/scripts/android-build-tests.sh i686-linux-android i686-linux-android i686-linux-android android-i686-tests
+          # Under the ARM translation the loader did not find libc++_shared.so next to
+          # the armv7 executables, LD_LIBRARY_PATH notwithstanding. They link the
+          # C++ runtime statically instead (c++_static, plus c++abi for the
+          # exception support it leaves out); the i686 ones keep the shared one.
+          export CXXSTDLIB=c++_static
+          export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_RUSTFLAGS="-C link-arg=-lc++abi"
           .github/scripts/android-build-tests.sh armv7-linux-androideabi armv7a-linux-androideabi arm-linux-androideabi android-armv7-tests
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

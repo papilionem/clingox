@@ -92,10 +92,11 @@ patches, so with one of them these remain:
   compiled with /GL found; restarting link with /LTCG`. clasp and libpotassco build
   with `/GL` (whole-program optimisation) in Release, so the linker restarts with
   `/LTCG` on its own. It is harmless: the result is the same and only the link
-  restarts. Silence it in your crate with `#![allow(linker_messages)]` in the
-  crate root, `linker_messages = "allow"` under `[lints.rust]` in `Cargo.toml`, or
-  `-A linker-messages`. clingox keeps `/GL` because building without it made
-  clingo 3 to 3.5% slower on larger programs (see the benchmarks notes).
+  restarts. It comes from clingo's own Release settings; clingox keeps them
+  because building without `/GL` made clingo about 3% slower on larger programs.
+  Silence it with `#![allow(linker_messages)]` in the root of the crate that is
+  linked (a binary, or a test), or with `RUSTFLAGS="-A linker-messages"`; both were
+  tried on Windows CI and removed the message.
 
 ## Results to read carefully
 
