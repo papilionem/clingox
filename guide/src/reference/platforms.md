@@ -64,9 +64,11 @@ Android ARM64 and ARMv7 are not tested yet:
 
 - The ARM64 test executables are built in CI. The job that should run them on an
   ARM64 emulator needs hardware virtualisation (KVM), which the ARM64 runner does
-  not offer, so it stops after checking for it.
+  not offer, so the job fails after checking for it (it is experimental, so the run
+  stays green).
 - The ARMv7 test executables are built and copied to the 32-bit x86 emulator, whose
-  ARM translation layer is meant to run them. It does not run them yet.
+  ARM translation layer is meant to run them. It does not run them yet, and the
+  job fails at that step.
 
 clingo 5.8 is known to give wrong results on ARM64 devices with Android 11 or
 later, because it stores flags in pointer bits that Android uses for pointer

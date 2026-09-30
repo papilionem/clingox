@@ -477,6 +477,35 @@ decision or reaches into every entry point.
      have to keep `doStart`'s wait for the strategy to attach, on which the
      `Running` phase relies.
 
+## Windows: clingo with and without `/GL`
+
+clasp and libpotassco build with `/GL` on MSVC in Release, which makes `link.exe`
+restart with `/LTCG` and print a warning for every binary. The question was
+whether removing `/GL` costs speed. One `windows-2025` job (x86_64, MSVC 14.51)
+built clingox twice, with and without `/GL` (the two `VC_RELEASE_OPTIONS` lines
+edited in the vendored source), and ran the same workloads alternately, five rounds
+each (2026-09-30). Medians in milliseconds, criterion's middle estimate:
+
+| Workload | With `/GL` | Without | Ratio |
+|---|---|---|---|
+| `end_to_end/queens8_all` | 12.29 | 12.14 | 0.988 |
+| `end_to_end/pigeons8_7_unsat` | 121.3 | 121.4 | 1.001 |
+| `propagator/pigeons_baseline` (9 pigeons, 8 holes) | 1265 | 1281 | 1.013 |
+| `observer/baseline_no_observer` (30 000 rules) | 389 | 403 | 1.035 |
+| `facts/add_facts_10k` | 263 | 265 | 1.008 |
+| 11 queens, all 2680 models (about 1.7 s) | 1737 | 1791 | 1.031 |
+| pigeons 9 in 8, unsatisfiable (about 1.5 s) | 1536 | 1588 | 1.034 |
+
+The rounds of one variant differ by 1 to 2% (about 10% on the 30 000-rule row); the
+two larger programs vary by about 10 ms in 1.6 s. Relinking a small test binary took
+about 0.9 s either way.
+
+Decision: keep `/GL`. Without it the two larger solves are 3.1 and 3.4% slower, beyond
+the noise, and the small rows stay within 1.5%. The warning is harmless and can be
+silenced by the application (known issues, Platforms). A `/LTCG` link argument emitted
+by `clingox-sys` would not help: a build script's link arguments apply to the
+package's own targets, not to the crates that depend on it.
+
 ## Reproducing
 
 ```text

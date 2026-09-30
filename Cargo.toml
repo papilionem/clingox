@@ -15,6 +15,10 @@ missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 unsafe_op_in_unsafe_fn = "deny"
+# The vendored MSVC build of clingo carries /GL objects, which make link.exe print a
+# harmless "restarting link with /LTCG" line that rustc reports as this lint
+# (known issues, Platforms). Allowed here so clingox's own builds stay quiet.
+linker_messages = "allow"
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

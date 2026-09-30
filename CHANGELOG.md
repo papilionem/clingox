@@ -27,6 +27,11 @@ clingo's C API, and the build of clingo itself).
   build scripts see them as `DEP_CLINGO_THREADS` and `DEP_CLINGO_PATCHES`.
   `CLINGO_THREADS` tells the build whether a system clingo has threads. Thread
   support comes from how clingo was built, not from the target.
+- On Windows (MSVC) the linker prints a harmless `/GL` warning for every binary that
+  links the vendored clingo; the known issues say how to silence it. clingox keeps
+  `/GL`, which makes clingo 3 to 3.5% faster on larger programs.
+- Windows: clingo's output and a printer callback's now stay in order, because C
+  stdio is flushed around a run as it is on Unix.
 - Vendored MSVC builds compile clingo with `/EHsc`. Without it MSVC compiles clingo's
   `try` and `catch` without unwinding, and any exception clingo throws and catches
   itself (a syntax error, an error returned from a callback) hung or crashed the

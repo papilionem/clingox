@@ -342,7 +342,7 @@ jobs:
     timeout-minutes: 120
     # An experimental host is one nobody has run the suite on yet. It reports
     # its failures, but does not block `conclusion`. Remove the flag once the
-    # job has been green (see PORTABILITY.md, "Experimental jobs").
+    # job has been green (see guide/src/reference/platforms.md, "Experimental jobs").
     continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
@@ -393,7 +393,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: macos-15
     timeout-minutes: 90
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
       CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUNNER: ${{ github.workspace }}/.github/scripts/ios-sim-runner.sh
@@ -537,8 +537,8 @@ jobs:
 
   # Runs those executables on an arm64-v8a emulator when the arm64 runner
   # offers KVM. Whether it does is unverified, so the job probes /dev/kvm and,
-  # without it, prints a notice and stops after the artifact (uploaded by the
-  # build job) exists. Android 11+ on arm64 is where U18 says clingo 5.8 is
+  # without it, fails: a green job must mean its tests ran. The job is
+  # experimental, so the run stays green while the job shows red. Android 11+ on arm64 is where U18 says clingo 5.8 is
   # broken, so a red result here can be the real finding: api-level 30 is the
   # oldest image that shows it.
   android-arm64:
@@ -547,7 +547,7 @@ jobs:
     needs: android-arm64-build
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     steps:
       # Only the helper script is needed from the repository.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -567,7 +567,8 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Android arm64::/dev/kvm is absent on this runner, so no arm64 emulator was started. The built test executables are in the android-arm64-tests artifact of the build job."
+            echo "::error title=Android arm64::/dev/kvm is absent on this runner, so no arm64 emulator was started and no test ran. The built test executables are in the android-arm64-tests artifact of the build job."
+            exit 1
           fi
       - uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         if: steps.kvm.outputs.available == 'true'
@@ -584,13 +585,13 @@ jobs:
           script: bash .github/scripts/android-run-tests.sh android-arm64-tests arm64-v8a
 
   # Native 32-bit x86. cc and cmake receive -m32 from the target triple (the
-  # `cmake` crate forwards the `cc` crate's flags); unverified, see PORTABILITY.md.
+  # `cmake` crate forwards the `cc` crate's flags); unverified, see guide/src/reference/platforms.md.
   linux-i686:
     name: test (i686-unknown-linux-gnu)
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
     steps:
@@ -618,7 +619,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: windows-2025
     timeout-minutes: 150
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: "0"
     steps:
@@ -648,7 +649,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 240
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
       QEMU_LD_PREFIX: /usr/arm-linux-gnueabihf
@@ -686,7 +687,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
     steps:
@@ -738,7 +739,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             bash .github/scripts/android-run-tests.sh android-i686-tests x86
-            bash .github/scripts/android-run-tests.sh android-armv7-tests armeabi-v7a || echo "::warning title=Android armv7::the ARM translation did not run the armv7 test executables"
+            bash .github/scripts/android-run-tests.sh android-armv7-tests armeabi-v7a
 
   wasm-browser:
     name: test (WASM in ${{ matrix.browser }})
@@ -888,7 +889,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -911,7 +912,7 @@ jobs:
             set -eu
             . "$HOME/.cargo/env"
             # The base compiler is GCC with libstdc++; build.rs would link
-            # libc++ for any *BSD (PORTABILITY.md).
+            # libc++ for any *BSD (guide/src/reference/platforms.md).
             export CXXSTDLIB=stdc++
             rustc -vV
             cargo test --locked --workspace
@@ -921,7 +922,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true # experimental, see PORTABILITY.md
+    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

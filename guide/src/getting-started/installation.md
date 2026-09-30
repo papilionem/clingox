@@ -97,6 +97,10 @@ CMake build does by default. A build without it compiles clingo's exception hand
 without unwinding, and errors that clingo reports through exceptions then hang or
 crash the process.
 
+With the vendored build on Windows (MSVC), the linker prints a warning about `/GL`
+for every binary. It is harmless; the [known issues](../reference/known-issues.md#platforms)
+say how to silence it.
+
 A system clingo does not get clingox's fixes for known clingo bugs, which are
 applied only to the vendored source. The [known issues](../reference/known-issues.md)
 list what remains there.

@@ -87,6 +87,16 @@ patches, so with one of them these remain:
   and x86 emulators, which cannot show this; the ARM64 build is compiled in CI but
   not run. The clingo maintainers say clingo 6 fixes this.
 
+- **A linker warning on Windows (MSVC).** Every binary that links the vendored clingo
+  prints `warning: linker stdout: clingo.lib(control.obj) : MSIL .netmodule or module
+  compiled with /GL found; restarting link with /LTCG`. clasp and libpotassco build
+  with `/GL` (whole-program optimisation) in Release, so the linker restarts with
+  `/LTCG` on its own. It is harmless: the result is the same and only the link
+  restarts. Silence it in your crate with `#![allow(linker_messages)]` in the
+  crate root, `linker_messages = "allow"` under `[lints.rust]` in `Cargo.toml`, or
+  `-A linker-messages`. clingox keeps `/GL` because building without it made
+  clingo 3 to 3.5% slower on larger programs (see the benchmarks notes).
+
 ## Results to read carefully
 
 - **Interrupted searches are never conclusive.** clingo can report an interrupted
