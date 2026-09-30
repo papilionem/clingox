@@ -7,7 +7,9 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
-## [508.2.0-beta.1] - 2026-09-30
+## [508.2.0-beta.2] - 2026-09-30
+
+508.2.0-beta.1 was tagged but not published: crates.io rejected a crate keyword longer than 20 characters.
 
 The first public release: safe bindings to clingo 5.8.2, covering 248 of its 254
 C functions, with a vendored build that patches eight clingo defects.
@@ -232,4 +234,4 @@ by the way an API is shaped.
   itself recurses (dropping, printing, copying or comparing a very deep syntax
   tree) the limit is documented (U34).
 
-[508.2.0-beta.1]: https://github.com/papilionem/clingox/releases/tag/v508.2.0-beta.1
+[508.2.0-beta.2]: https://github.com/papilionem/clingox/releases/tag/v508.2.0-beta.2

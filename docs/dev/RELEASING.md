@@ -15,7 +15,8 @@ The number encodes the clingo version (DESIGN §10): `MAJOR` is 100 times clingo
 major version plus its minor version (508 for clingo 5.8), `MINOR` is clingo's patch
 version (2), `PATCH` is our own release counter for that clingo version. While the
 API may still change the version carries a pre-release suffix (`-alpha.N`, `-beta.N`
-or `-rc.N`); the first public release is `508.2.0-beta.1`.
+or `-rc.N`); the first published release is `508.2.0-beta.2` (`v508.2.0-beta.1` was
+tagged, but crates.io refused a keyword, so nothing was published under it).
 
 Consequences:
 
@@ -125,18 +126,18 @@ configured for a crate that exists:
    expiry. Store it on GitHub as the secret `CARGO_REGISTRY_TOKEN` of the `release`
    environment (Settings, Environments, `release`, Environment secrets). The workflow
    uses it when it exists and trusted publishing otherwise.
-5. Make the first release (`v508.2.0-beta.1`) as above.
+5. Make the first release (`v508.2.0-beta.2`) as above.
 6. For each of `clingox-sys`, `clingox-derive` and `clingox` on crates.io: Settings,
    Trusted Publishing, Add, GitHub, with owner `papilionem`, repository `clingox`,
    workflow `release.yml`, environment `release`.
 7. Delete the `CARGO_REGISTRY_TOKEN` environment secret and revoke the token on
    crates.io. Every later release uses trusted publishing.
 8. Update the installation text of the README and the guide from the git dependency
-   to `clingox = "=508.2.0-beta.1"` (Cargo selects no pre-release otherwise), and the
+   to `clingox = "=508.2.0-beta.2"` (Cargo selects no pre-release otherwise), and the
    README status line ("not published yet").
 
 The API check in `cargo xtask check` skips itself until a release tag exists
-(`xtask/semver-baseline` names `latest`). From `v508.2.0-beta.1` on it checks the API
+(`xtask/semver-baseline` names `latest`). From the first release tag on it checks the API
 against the newest release tag, betas and release candidates included. A baseline
 built for another clingo needs that clingo's checkout, see `xtask/src/semver.rs`.
 
@@ -178,5 +179,9 @@ say so in the changelog, and mark the GitHub Release as superseded in its notes.
   change to the packed files is intended, `cargo xtask package-lists --bless`
   rewrites the lists, and the diff shows in review. `clingox-sys` is about 1 MB
   compressed.
+- Registry rules: `cargo xtask crate-metadata` (part of `cargo xtask check`) checks
+  what crates.io validates on publish and `cargo publish --dry-run` does not:
+  keywords (at most five, each at most 20 characters), category slugs, the
+  description, the licence expression, the URLs, the feature count and the readme.
 - `cargo package --locked -p clingox-sys -p clingox-derive -p clingox` packs and
   builds all three the way the `package` job does.

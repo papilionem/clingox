@@ -51,7 +51,7 @@ Every decision below serves one of these. Each has a test that proves it.
 | Errors | one `check()`; error state reset before each call; message copied on the calling thread |
 | Leaks | no safety invariant depends on a guard's `Drop` |
 | Panics | caught in every trampoline; resumed on the caller's thread |
-| First release | `508.2.0-beta.1`, from a version tag (`docs/dev/RELEASING.md`); `-beta.N` while the API may change |
+| First release | `508.2.0-beta.2` (`v508.2.0-beta.1` was tagged, but crates.io refused a keyword and nothing was published), from a version tag (`docs/dev/RELEASING.md`); `-beta.N` while the API may change |
 
 ## 4. Why our own binding
 
@@ -1069,7 +1069,7 @@ headless-browser job nightly.
 ## 12. Decisions and changes
 
 **Decided:**
-1. The first public release is `508.2.0-beta.1`, made by merging a release pull request.
+1. The first public release is `508.2.0-beta.2`, from a version tag (`v508.2.0-beta.1` was tagged but not published).
 2. Versioning follows §10.
 3. All platforms, browsers included, with multi-threading wherever the platform
    allows it.

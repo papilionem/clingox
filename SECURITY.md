@@ -81,16 +81,16 @@ each `.crate` file, signed through Sigstore by the release workflow. To check a
 release, with the [GitHub CLI](https://cli.github.com):
 
 ```sh
-gh release download v508.2.0-beta.1 --repo papilionem/clingox
+gh release download v508.2.0-beta.2 --repo papilionem/clingox
 sha256sum --check SHA256SUMS
-gh attestation verify clingox-508.2.0-beta.1.crate --repo papilionem/clingox
+gh attestation verify clingox-508.2.0-beta.2.crate --repo papilionem/clingox
 ```
 
 To compare with what Cargo downloads, fetch the same file from crates.io and check
 its hash against `SHA256SUMS`:
 
 ```sh
-curl -sSfL https://static.crates.io/crates/clingox/clingox-508.2.0-beta.1.crate | sha256sum
+curl -sSfL https://static.crates.io/crates/clingox/clingox-508.2.0-beta.2.crate | sha256sum
 ```
 
 Cargo itself checks every downloaded `.crate` file against the checksum in the

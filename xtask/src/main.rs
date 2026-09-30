@@ -13,6 +13,7 @@ mod budget;
 mod check;
 mod conformance;
 mod coverage;
+mod crate_metadata;
 mod package_lists;
 mod sanitize;
 mod semver;
@@ -51,6 +52,9 @@ commands:
   sanitize        the tests of clingox and clingox-sys under AddressSanitizer
                   and LeakSanitizer, then the thread tests under
                   ThreadSanitizer (nightly, Linux x86_64)
+  crate-metadata  the manifest fields crates.io checks on publish and cargo
+                  does not: keywords, categories, description, licence, URLs,
+                  readme (part of `check`)
   package-lists [--bless]
                   compare the files each published crate ships with
                   xtask/package-lists/<crate>.txt (part of `check`), or
@@ -86,6 +90,7 @@ fn main() -> ExitCode {
         ["test", "all"] => test::all(),
         ["miri"] => test::miri(),
         ["sanitize"] => sanitize::run_all(),
+        ["crate-metadata"] => crate_metadata::check(),
         ["package-lists"] => package_lists::run(false),
         ["package-lists", "--bless"] => package_lists::run(true),
         ["semver"] => semver::run(None),
