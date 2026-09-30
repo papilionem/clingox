@@ -1,188 +1,350 @@
-# Releases, through a release pull request as the human gate (docs/dev/RELEASING.md).
+# Releases from a version tag (docs/dev/RELEASING.md).
 #
-# Our version number encodes the clingo version (508.2.x is clingo 5.8.2), so the
-# maintainer chooses it and no tool derives it from an API check: a bump chosen by
-# tooling would break the encoding.
+# Pushing a tag vX.Y.Z runs, in order:
 #
-#   prepare  started by hand with the version: sets the version of the crates and of
-#            the requirements between them, renames the changelog's Unreleased
-#            section, runs the API check (`cargo xtask semver`, which fails on a
-#            breaking change) and opens the pull request `Release vX.Y.Z` from the
-#            branch `release-plz-X.Y.Z`. Nothing is published.
-#   release  when the CI workflow has finished on a push to main: release-plz
-#            publishes clingox-sys, clingox-derive and clingox in that order, tags
-#            vX.Y.Z, and this job creates the GitHub Release. release-plz.toml sets
-#            `release_always = false`, so it publishes only when the commit is the
-#            merge of a pull request from a `release-plz-*` branch, and then exactly
-#            the version committed in the manifests. On any other commit it does
-#            nothing.
+#   verify          the tag is a version in our scheme and names the vendored clingo;
+#                   every crate has that version and the requirements between them
+#                   ask for it; the tagged commit is on main; CHANGELOG.md has a
+#                   section for it (kept as the release notes); the public API passes
+#                   `cargo xtask semver` against the previous release tag.
+#   ci, docs-rs     the full CI matrix (ci.yml) and the docs.rs build (docs-rs.yml) on
+#                   the tagged commit, called as reusable workflows: any failed job
+#                   stops the release.
+#   package         `cargo package` of the three crates, which builds each from its
+#                   packaged sources, before anything is published.
+#   publish         clingox-sys, clingox-derive and clingox to crates.io, in that
+#                   order, in the `release` environment (which can require a
+#                   reviewer). A crate already on crates.io at this version is
+#                   skipped, so a failed run can be re-run.
+#   github-release  the published .crate files, checked against the crates.io index,
+#                   with SHA256SUMS and build provenance attestations, attached to a
+#                   GitHub Release whose notes are the changelog section.
 #
-# Why `workflow_run` and not a reusable call of ci.yml: CI already runs on the same
-# push, so calling it from here would run the whole matrix twice. `workflow_run`
-# waits for that run, and the job then checks the CI `conclusion` job of the commit
-# itself, so a renamed or removed `conclusion` job stops releases instead of waving
-# them through.
+# Run by hand (Actions, Release, Run workflow) it is a rehearsal by default: `tag`
+# names the release to rehearse, on the commit of the branch or tag the run is
+# started from, and everything up to `package` runs; nothing is published. A run with
+# `dry_run` off publishes, and only when started from the tag itself.
 #
-# Publishing authenticates with crates.io trusted publishing (OIDC). A crate's very
-# first publish cannot: crates.io offers trusted publishing only for existing crates.
-# For that, put a normal token in the CARGO_REGISTRY_TOKEN secret; it is used only
-# when it exists (RELEASING.md).
+# Why a reusable call of ci.yml and not `workflow_run`: the release then carries its
+# own CI result for the exact tagged commit, including the jobs a push to main leaves
+# out (ci.yml runs them for release tags), and does not depend on another workflow's
+# run that may be missing or re-run.
+#
+# No job here restores or saves a cache (Swatinem/rust-cache, ccache): what is
+# packaged and published is built from a clean checkout. The CI matrix keeps its
+# caches; they only speed up tests, and a tag never writes them.
 name: Release
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
+  push:
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
-      version:
-        description: The version to release, like 508.2.0-beta.2 or 508.2.1
+      tag:
+        description: The release tag, like v508.2.0-beta.2
         type: string
         required: true
-      allow_breaking:
-        description: Allow API changes since the last release (only for a pre-release version)
+      dry_run:
+        description: Rehearse only; publish nothing
         type: boolean
-        default: false
+        default: true
 
 permissions: {}
+
+# One run per tag or branch at a time; a second waits instead of cancelling the first,
+# which may be publishing. Called, ci.yml takes the group `Release-<ref>`; group names
+# ignore case, so this one must differ from it by more than case.
+concurrency:
+  group: release-run-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_NET_RETRY: "10"
+  RUSTUP_MAX_RETRIES: "10"
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  prepare:
-    name: release pull request
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+  verify:
+    name: verify
+    # Only the public repository releases: a v* tag in any other copy of this
+    # repository (a fork, a mirror) never gets past here, even with Actions on.
+    if: github.repository == 'papilionem/clingox'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
-      contents: write
-      pull-requests: write
-    concurrency:
-      group: release-prepare
-      cancel-in-progress: false
-    env:
-      VERSION: ${{ inputs.version }}
-      ALLOW_BREAKING: ${{ inputs.allow_breaking }}
-      # The API check reads rustdoc JSON, which never needs the native build.
-      DOCS_RS: "1"
-      # A pull request opened with GITHUB_TOKEN does not start CI. A token of a
-      # GitHub App or a personal access token in this secret does.
-      PR_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      dry_run: ${{ steps.tag.outputs.dry_run }}
+      version: ${{ steps.tree.outputs.version }}
+      prerelease: ${{ steps.tree.outputs.prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # Every branch and tag: origin/main for the ancestry check, the earlier
+          # release tags for the API check.
           fetch-depth: 0
           submodules: recursive
-          token: ${{ env.PR_TOKEN }}
+          persist-credentials: false
+      - name: The tag and the commit
+        id: tag
+        env:
+          TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          # The input is free text: its full form is checked by verify.sh below, but
+          # it reaches outputs and messages first.
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-z]+\.[0-9]+)?$ ]]; then
+            echo "::error::The tag must look like v508.2.0 or v508.2.0-beta.2."
+            exit 1
+          fi
+          dry_run=false
+          [ "$DRY_RUN" = true ] && dry_run=true
+          # A real release runs only from the tag itself, so what is published is
+          # exactly what the tag names.
+          if [ "$dry_run" = false ] && [ "$GITHUB_REF" != "refs/tags/$TAG" ]; then
+            echo "::error::A release runs from its tag: start the run from $TAG, or rehearse with dry_run."
+            exit 1
+          fi
+          # A rehearsal may come before the tag; once it exists, it must name this commit.
+          if target=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}"); then
+            if [ "$target" != "$GITHUB_SHA" ]; then
+              echo "::error::$TAG is $target, but this run is for $GITHUB_SHA."
+              exit 1
+            fi
+          elif [ "$dry_run" = false ]; then
+            echo "::error::The tag $TAG does not exist."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA is not on main; only commits on main are released."
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "dry_run=$dry_run"
+          } >> "$GITHUB_OUTPUT"
+      # Before verify.sh, which reads the workspace with `cargo metadata`.
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
         with:
           toolchain: stable
+      - name: Versions, requirements, changelog
+        id: tree
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: scripts/release/verify.sh "$TAG" --notes "$RUNNER_TEMP/notes.md"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-notes
+          path: ${{ runner.temp }}/notes.md
+          if-no-files-found: error
       - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: cargo-semver-checks
-      - name: Set the version and the changelog section
-        run: scripts/release/prepare.sh "$VERSION"
-      - name: The API check
+      # Against the previous release explicitly: `cargo xtask semver` alone takes the
+      # newest tag, which is this release's own tag once it exists.
+      - name: The API check against the previous release
+        env:
+          PREVIOUS: ${{ steps.tree.outputs.previous }}
         run: |
-          # A pre-release may break the API when the maintainer says so; 508.2.x
-          # never may. With no earlier release tag there is nothing to compare with.
-          if [ "$ALLOW_BREAKING" = true ] && [[ "$VERSION" == *-* ]]; then
-            echo "API changes allowed for the pre-release $VERSION."
+          if [ -z "$PREVIOUS" ]; then
+            echo "::notice::No earlier release tag; the API check has no baseline."
           else
-            cargo xtask semver
+            cargo xtask semver --baseline-rev "$PREVIOUS"
           fi
-      - name: Open the pull request
+      - name: Summary
         env:
-          GH_TOKEN: ${{ env.PR_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          PRERELEASE: ${{ steps.tree.outputs.prerelease }}
+          DRY_RUN: ${{ steps.tag.outputs.dry_run }}
         run: |
-          branch="release-plz-$VERSION"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
-          git commit -a -m "Release: version $VERSION"
-          git push origin "$branch"
-          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
-            --title "Release v$VERSION" \
-            --body "Sets the version to $VERSION and names the changelog section. Merge to publish once CI is green (docs/dev/RELEASING.md)."
+          if [ "$PRERELEASE" = true ]; then
+            echo "::notice::$TAG is a pre-release: Cargo selects it only when a requirement names a pre-release."
+          fi
+          if [ "$DRY_RUN" = true ]; then
+            echo "::notice::Rehearsal of $TAG: nothing is published."
+          fi
 
-  release:
-    name: publish
-    if: >-
-      github.event_name == 'workflow_run'
-      && github.event.workflow_run.conclusion == 'success'
-      && github.event.workflow_run.event == 'push'
-      && github.event.workflow_run.head_branch == 'main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-    # An environment named `release` can require a reviewer; trusted publishing on
-    # crates.io can be limited to it too (RELEASING.md).
-    environment: release
+  ci:
+    name: ci
+    needs: verify
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository] a called workflow is read from the caller's commit, not from files on the runner; actionlint does not accept `$/` yet
     permissions:
-      contents: write
-      pull-requests: read
-      checks: read
-      id-token: write
-    concurrency:
-      group: release
-      cancel-in-progress: false
-    env:
-      HAS_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
-      # The commit CI ran for: a later push to main must not change what is released.
-      SHA: ${{ github.event.workflow_run.head_sha }}
+      contents: read
+
+  docs-rs:
+    name: docs.rs
+    needs: verify
+    uses: ./.github/workflows/docs-rs.yml # zizmor: ignore[self-repository] as for ci.yml above
+    permissions:
+      contents: read
+
+  package:
+    name: package
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
     steps:
-      - name: CI succeeded for this commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # The workflow's own conclusion is not enough: require the aggregate job
-          # by name, and fail when it is missing (an empty set must not pass).
-          results=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs" \
-            --jq '.check_runs[] | select(.name == "conclusion") | .conclusion')
-          if [ -z "$results" ] || [ "$(printf '%s\n' "$results" | sort -u)" != "success" ]; then
-            echo "The CI job 'conclusion' of $SHA has result '${results:-missing}'; not releasing." >&2
-            exit 1
-          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ env.SHA }}
-          fetch-depth: 0
           submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
         with:
           toolchain: stable
+      # Packs the three crates and builds each from its package, clingox against the
+      # packages of the other two, as `cargo publish` will.
+      - run: cargo package --locked -p clingox-sys -p clingox-derive -p clingox
+      - name: Checksums
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          mkdir dist
+          for crate in clingox-sys clingox-derive clingox; do
+            cp "target/package/$crate-$VERSION.crate" dist/
+          done
+          (cd dist && sha256sum -- *.crate > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: packages
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish
+    needs: [verify, ci, docs-rs, package]
+    if: github.repository == 'papilionem/clingox' && needs.verify.outputs.dry_run == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # the OIDC token that trusted publishing exchanges
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+      HAS_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+      USER_AGENT: clingox-release (https://github.com/${{ github.repository }})
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+        with:
+          toolchain: stable
+      # crates.io trusted publishing: the job's OIDC identity is exchanged for a
+      # short-lived token, revoked when the job ends. A crate's first publish cannot
+      # use it, so a CARGO_REGISTRY_TOKEN secret, when one exists, is used instead
+      # (RELEASING.md).
       - name: Trusted publishing token
         id: auth
         if: env.HAS_REGISTRY_TOKEN != 'true'
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
       - name: Publish
-        id: plz
-        uses: release-plz/action@b8d6b54b02889ff2ae2bb82e8b57c3a8fc1683a5 # v0.5.139
-        with:
-          command: release
-          config: release-plz.toml
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
-      - name: GitHub Release
-        if: steps.plz.outputs.releases_created == 'true'
+        run: |
+          # The sparse index file of a crate (names of four or more characters),
+          # one JSON line per version.
+          index_url() { echo "https://index.crates.io/${1:0:2}/${1:2:2}/$1"; }
+          # 0 when the version is in the index, 1 when it is not (a crate that does
+          # not exist yet is a 404), 2 when the index cannot be read.
+          published() {
+            local status found
+            status=$(curl -sS -o "$RUNNER_TEMP/index" -w '%{http_code}' \
+              -A "$USER_AGENT" -H 'Cache-Control: no-cache' "$(index_url "$1")") || return 2
+            case $status in
+              200)
+                found=$(jq -s --arg v "$VERSION" 'any(.[]; .vers == $v)' "$RUNNER_TEMP/index") || return 2
+                [ "$found" = true ] ;;
+              404) return 1 ;;
+              *) echo "the index answered $status for $1" >&2; return 2 ;;
+            esac
+          }
+          for crate in clingox-sys clingox-derive clingox; do
+            state=0
+            published "$crate" || state=$?
+            if [ "$state" = 0 ]; then
+              echo "::notice::$crate $VERSION is on crates.io already; skipped."
+              continue
+            fi
+            [ "$state" = 1 ] || exit 1
+            cargo publish --locked -p "$crate"
+            # The next crate resolves this one from the index, so wait until it is
+            # there (cargo publish waits as well, but for a shorter time).
+            for attempt in $(seq 1 60); do
+              state=0
+              published "$crate" || state=$?
+              [ "$state" = 0 ] && break
+              if [ "$attempt" = 60 ]; then
+                echo "::error::$crate $VERSION is not in the index after 10 minutes."
+                exit 1
+              fi
+              sleep 10
+            done
+            echo "$crate $VERSION published."
+          done
+
+  github-release:
+    name: GitHub Release
+    needs: [verify, publish]
+    if: github.repository == 'papilionem/clingox' && needs.verify.outputs.dry_run == 'false'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # creates the GitHub Release and uploads its files
+      id-token: write # the Sigstore certificate of the attestations
+      attestations: write # stores the attestations
+    env:
+      TAG: ${{ needs.verify.outputs.tag }}
+      VERSION: ${{ needs.verify.outputs.version }}
+      PRERELEASE: ${{ needs.verify.outputs.prerelease }}
+      USER_AGENT: clingox-release (https://github.com/${{ github.repository }})
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-notes
+          path: notes
+      # The files crates.io serves, each checked against the checksum the index
+      # records for it: what is attested and attached is exactly what Cargo downloads.
+      - name: The published .crate files
+        run: |
+          mkdir dist
+          for crate in clingox-sys clingox-derive clingox; do
+            file="dist/$crate-$VERSION.crate"
+            curl -fsSL -A "$USER_AGENT" -o "$file" \
+              "https://static.crates.io/crates/$crate/$crate-$VERSION.crate"
+            want=$(curl -fsSL -A "$USER_AGENT" "https://index.crates.io/${crate:0:2}/${crate:2:2}/$crate" \
+              | jq -r --arg v "$VERSION" 'select(.vers == $v) | .cksum')
+            have=$(sha256sum "$file" | cut -d' ' -f1)
+            if [ -z "$want" ] || [ "$want" != "$have" ]; then
+              echo "::error::$file has sha256 $have, the index records '${want:-nothing}'."
+              exit 1
+            fi
+          done
+          (cd dist && sha256sum -- *.crate > SHA256SUMS && cat SHA256SUMS)
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*.crate
+      - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASES: ${{ steps.plz.outputs.releases }}
         run: |
-          # One tag for the three crates, on clingox; the notes are the changelog
-          # section, not commit messages.
-          echo "$RELEASES" | jq -r '.[] | select(.package_name == "clingox") | "\(.tag) \(.version)"' |
-          while read -r tag version; do
-            scripts/release/changelog.sh section "$version" > "$RUNNER_TEMP/notes.md"
-            flag=()
-            [[ "$version" == *-* ]] && flag=(--prerelease)
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --verify-tag "${flag[@]}" \
-              --title "clingox $version" --notes-file "$RUNNER_TEMP/notes.md"
-          done
+          flag=()
+          [ "$PRERELEASE" = true ] && flag=(--prerelease)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # A re-run: the release exists, so only its files are replaced.
+            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag "${flag[@]}" \
+              --title "clingox $VERSION" --notes-file notes/notes.md dist/*
+          fi

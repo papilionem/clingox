@@ -1,6 +1,12 @@
 # Findings of `cargo semver-checks` that are expected, one per line:
-# `<lint name> <item path>`. `cargo xtask semver` and `cargo xtask check` fail
-# on a finding that is not listed here and on an entry that no longer occurs.
+# `<lint name> <item path>`, against the release the `baseline` line names.
+# Checked against that release, `cargo xtask semver` and `cargo xtask check`
+# fail on a finding that is not listed here and on an entry that no longer
+# occurs. Checked against any other release the entries are ignored, so they
+# never outlive the release that follows them: delete them, and set `baseline`
+# to the new release tag, when the next change needs an entry.
+#
+baseline v508.2.0-alpha.1
 #
 # `Control` is now `pub type Control = ScopedControl<'static>`.
 # Every use of the name (fields, return types, `Control::new`) compiles

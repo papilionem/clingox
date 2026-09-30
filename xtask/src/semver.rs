@@ -79,7 +79,12 @@ fn check(baseline: &str) -> Result<()> {
         String::from_utf8_lossy(&result.stderr)
     );
     eprint!("{text}");
-    let allowed = parse_allow(&std::fs::read_to_string(root().join(ALLOW_FILE))?);
+    let text_allow = std::fs::read_to_string(root().join(ALLOW_FILE))?;
+    let allowed = applicable(
+        baseline,
+        allow_baseline(&text_allow),
+        parse_allow(&text_allow),
+    )?;
     let found = findings(&text);
     if result.status.success() && found.is_empty() {
         return settle(&allowed, &found);
@@ -134,12 +139,54 @@ fn settle(allowed: &[(String, String)], found: &[(String, String)]) -> Result<()
 fn parse_allow(text: &str) -> Vec<(String, String)> {
     text.lines()
         .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter(|l| !l.is_empty() && !l.starts_with('#') && allow_directive(l).is_none())
         .filter_map(|l| {
             let (lint, item) = l.split_once(char::is_whitespace)?;
             Some((lint.to_owned(), item.trim().to_owned()))
         })
         .collect()
+}
+
+/// The tag of a `baseline <tag>` line, which names the release the entries of the
+/// allow file were written against.
+fn allow_directive(line: &str) -> Option<&str> {
+    line.strip_prefix("baseline ").map(str::trim)
+}
+
+fn allow_baseline(text: &str) -> Option<String> {
+    text.lines()
+        .map(str::trim)
+        .find_map(allow_directive)
+        .map(str::to_owned)
+}
+
+/// The entries that apply to a check against `baseline`. Entries describe the
+/// change since one release: against that release they settle exactly, and
+/// against any other (the next release, once it is tagged) they are ignored,
+/// so a release never leaves stale entries behind. Entries without a
+/// `baseline` line are an error.
+fn applicable(
+    baseline: &str,
+    declared: Option<String>,
+    entries: Vec<(String, String)>,
+) -> Result<Vec<(String, String)>> {
+    if entries.is_empty() {
+        return Ok(entries);
+    }
+    match declared {
+        None => Err(format!(
+            "{ALLOW_FILE} lists findings but no `baseline <tag>` line naming the release they are against"
+        )
+        .into()),
+        Some(tag) if tag == baseline => Ok(entries),
+        Some(tag) => {
+            eprintln!(
+                "semver: the {} entries of {ALLOW_FILE} are against {tag}, not {baseline}; ignored",
+                entries.len()
+            );
+            Ok(Vec::new())
+        }
+    }
 }
 
 /// The findings in the output of `cargo semver-checks`, as (lint, item path):
@@ -337,6 +384,23 @@ mod tests {
         assert!(key("v508.2.0") > key("v508.2.0-rc.1"));
         assert!(key("v508.2.1-beta.1") > key("v508.2.0"));
         assert!(key("v508.10.0") > key("v508.9.0"));
+    }
+
+    #[test]
+    fn allow_entries_apply_only_against_their_baseline() {
+        let text = "# c\nbaseline v1.0.0\nstruct_missing a::B\n";
+        assert_eq!(allow_baseline(text).as_deref(), Some("v1.0.0"));
+        let entries = parse_allow(text);
+        assert_eq!(entries.len(), 1, "the baseline line is no entry");
+        let own = applicable("v1.0.0", allow_baseline(text), entries.clone()).unwrap();
+        assert_eq!(own, entries);
+        let next = applicable("v1.1.0", allow_baseline(text), entries.clone()).unwrap();
+        assert!(next.is_empty(), "ignored against another release");
+        assert!(
+            applicable("v1.0.0", None, entries).is_err(),
+            "entries need a baseline"
+        );
+        assert!(applicable("v1.0.0", None, Vec::new()).unwrap().is_empty());
     }
 
     #[test]

@@ -5,9 +5,8 @@
 #                                          "[<version>] - <date>" and puts a new,
 #                                          empty "Unreleased" section above it;
 #                                          does nothing when <version> already has one
-#   changelog.sh section <version>         prints the notes of <version>: its own
-#                                          section, or the Unreleased section when
-#                                          the release has none yet
+#   changelog.sh section <version>         prints the notes of <version>: the body
+#                                          of its section; fails when it has none
 set -euo pipefail
 
 file="${CHANGELOG:-CHANGELOG.md}"
@@ -41,13 +40,6 @@ case "$cmd" in
       heading($0) { on = ($0 ~ "^## \\[" v "\\]") ? 1 : 0; if (on) next }
       on { print }
     ' "$file")
-    if [ -z "$(printf '%s' "$text" | tr -d '[:space:]')" ]; then
-      text=$(awk '
-        /^## \[?Unreleased\]?[[:space:]]*$/ { on = 1; next }
-        /^## / { on = 0 }
-        on { print }
-      ' "$file")
-    fi
     [ -n "$(printf '%s' "$text" | tr -d '[:space:]')" ] || { echo "no notes for $version in $file" >&2; exit 1; }
     printf '%s\n' "$text"
     ;;

@@ -159,6 +159,11 @@ clingo's C API, and the build of clingo itself).
   solving take the same time, and small calls cost 20 to 200 ns more each. Queries that cannot fail no longer reset clingo's
   error state before each call, which makes reading symbols, atoms and statistics
   two to nine times faster; no check was removed.
+- Releases start from a version tag. The release workflow checks the tag against the
+  manifests and this changelog, runs the full CI matrix, publishes the three crates
+  (through crates.io trusted publishing once they exist), and attaches the `.crate`
+  files with SHA-256 checksums and build provenance attestations to the GitHub
+  Release.
 
 ### Fixed
 

@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use crate::util::{self, Result, cargo, output, root};
-use crate::{ast_codegen, bindings, budget, conformance};
+use crate::{ast_codegen, bindings, budget, conformance, package_lists};
 
 /// The published crate must stay below this size (DESIGN 5.4).
 const MAX_PACKAGE_BYTES: u64 = 8 * 1024 * 1024;
@@ -66,6 +66,7 @@ pub(crate) fn run() -> Result<()> {
             .arg(root().join("guide")),
     )?;
     package()?;
+    package_lists::run(false)?;
     eprintln!("check: all checks passed");
     Ok(())
 }

@@ -11,10 +11,18 @@ repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
 documentation = "https://docs.rs/clingox"
-# The tests are ported from clingo and need the repository (the vendored
-# submodule) to run, so the package leaves them out; see
-# tests/conformance/README.md.
-exclude = ["/tests/"]
+# What the package ships, and nothing else (the list is checked by `cargo xtask
+# check` against xtask/package-lists). The tests are ported from clingo and need
+# the repository (the vendored submodule) to run, so the package leaves them out;
+# see tests/conformance/README.md. The README comes from `readme`, which Cargo
+# always packs.
+include = [
+    "/Cargo.toml",
+    "/src/**/*.rs",
+    "/benches/*.rs",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [lints]
 workspace = true

@@ -11,6 +11,14 @@ repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
 documentation = "https://docs.rs/clingox-derive"
+# What the package ships, and nothing else (checked by `cargo xtask check`
+# against xtask/package-lists). The README comes from `readme`.
+include = [
+    "/Cargo.toml",
+    "/src/**/*.rs",
+    "/LICENSE-MIT",
+    "/LICENSE-APACHE",
+]
 
 [lib]
 proc-macro = true

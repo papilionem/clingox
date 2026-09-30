@@ -51,7 +51,7 @@ Every decision below serves one of these. Each has a test that proves it.
 | Errors | one `check()`; error state reset before each call; message copied on the calling thread |
 | Leaks | no safety invariant depends on a guard's `Drop` |
 | Panics | caught in every trampoline; resumed on the caller's thread |
-| First release | `508.2.0-beta.1`, through a release pull request (`docs/dev/RELEASING.md`); `-beta.N` while the API may change |
+| First release | `508.2.0-beta.1`, from a version tag (`docs/dev/RELEASING.md`); `-beta.N` while the API may change |
 
 ## 4. Why our own binding
 
@@ -947,9 +947,11 @@ with KVM.
   - benchmarks (grounding and solving throughput, symbol conversion) compared with
     the last run;
   - Rust beta and nightly; the weekly upstream-release check.
-- **Release:** a release pull request chosen and versioned by the maintainer, the API
-  check (`cargo xtask semver`) and the full CI matrix green; release-plz then publishes
-  `clingox-sys`, `clingox-derive`, then `clingox` (`docs/dev/RELEASING.md`).
+- **Release:** a version tag on main, versioned by the maintainer, starts the release
+  workflow: it checks the tag against the manifests and the changelog, runs the API
+  check (`cargo xtask semver`) and the full CI matrix, then publishes `clingox-sys`,
+  `clingox-derive`, then `clingox` and creates the GitHub Release
+  (`docs/dev/RELEASING.md`).
 
 | Tests on every PR | Build-only on every PR, tests nightly |
 |---|---|

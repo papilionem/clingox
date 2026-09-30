@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: >-
+  If you use clingox in your work, please cite it with the metadata below. Please
+  also cite clingo, the system clingox binds, with the reference listed under
+  "references".
+title: clingox
+abstract: >-
+  Rust bindings to clingo, the answer set programming system from the Potassco
+  project, with a vendored build of clingo 5.8.2.
+type: software
+authors:
+  - name: papilionem
+version: 508.2.0-beta.1
+license:
+  - MIT
+  - Apache-2.0
+repository-code: "https://github.com/papilionem/clingox"
+url: "https://papilionem.github.io/clingox/"
+keywords:
+  - clingo
+  - answer set programming
+  - logic programming
+  - Rust
+references:
+  - type: article
+    title: Multi-shot ASP solving with clingo
+    authors:
+      - family-names: Gebser
+        given-names: Martin
+      - family-names: Kaminski
+        given-names: Roland
+      - family-names: Kaufmann
+        given-names: Benjamin
+      - family-names: Schaub
+        given-names: Torsten
+        orcid: "https://orcid.org/0000-0002-7456-041X"
+    journal: Theory and Practice of Logic Programming
+    publisher:
+      name: Cambridge University Press
+    volume: 19
+    issue: 1
+    start: 27
+    end: 82
+    year: 2019
+    doi: 10.1017/S1471068418000054

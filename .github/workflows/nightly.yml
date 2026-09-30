@@ -28,7 +28,7 @@ defaults:
 
 jobs:
   ci:
-    uses: ./.github/workflows/ci.yml
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository] a called workflow is read from the caller's commit, not from files on the runner; actionlint does not accept `$/` yet
     permissions:
       contents: read
 

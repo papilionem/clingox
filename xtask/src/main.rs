@@ -13,6 +13,7 @@ mod budget;
 mod check;
 mod conformance;
 mod coverage;
+mod package_lists;
 mod sanitize;
 mod semver;
 mod setup;
@@ -31,7 +32,7 @@ commands:
                   constructor table
   check           fmt, clippy, doc, doctests (with the guide and README),
                   bindings, generated AST layer, submodule, deny, unsafe budget, guide and package
-                  checks
+                  checks, and the package lists
   test linux      cargo test --workspace on the host, including systest
   test compile-fail
                   the trybuild tests of clingox, on the Rust release their
@@ -50,6 +51,10 @@ commands:
   sanitize        the tests of clingox and clingox-sys under AddressSanitizer
                   and LeakSanitizer, then the thread tests under
                   ThreadSanitizer (nightly, Linux x86_64)
+  package-lists [--bless]
+                  compare the files each published crate ships with
+                  xtask/package-lists/<crate>.txt (part of `check`), or
+                  rewrite those lists with --bless
   semver [--baseline-rev <rev>]
                   cargo semver-checks for the three crates against <rev>, or
                   the tag in xtask/semver-baseline (skipped while that tag
@@ -81,6 +86,8 @@ fn main() -> ExitCode {
         ["test", "all"] => test::all(),
         ["miri"] => test::miri(),
         ["sanitize"] => sanitize::run_all(),
+        ["package-lists"] => package_lists::run(false),
+        ["package-lists", "--bless"] => package_lists::run(true),
         ["semver"] => semver::run(None),
         ["semver", "--baseline-rev", rev] => semver::run(Some(rev)),
         ["setup", "miri"] => setup::miri(),

@@ -13,6 +13,8 @@ on:
       - "clingox*/**"
       - ".github/workflows/docs-rs.yml"
   workflow_dispatch:
+  # release.yml calls it on the tagged commit.
+  workflow_call:
 
 permissions:
   contents: read

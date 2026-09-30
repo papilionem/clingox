@@ -177,7 +177,7 @@ runs.
 | `cargo xtask setup browser` | installs the Playwright tooling and browsers |
 | `cargo xtask sanitize` | ASan+LSan, then TSan on the thread tests (nightly, see section 5) |
 | `cargo xtask miri` | unit tests and trampolines under Miri |
-| `cargo xtask semver [--baseline-rev <rev>]` | `cargo semver-checks` for the three crates against `<rev>` or the baseline in `xtask/semver-baseline` (`latest`: the newest release tag; `cargo xtask check` skips the step while the repository has none), with the release type fixed to minor so that every breaking change is reported. Findings that are breaking for the tool but source-compatible by design are listed one by one in `xtask/semver-allow` (lint name, item path, reason); the step fails on an unlisted finding and on a listed entry that no longer occurs |
+| `cargo xtask semver [--baseline-rev <rev>]` | `cargo semver-checks` for the three crates against `<rev>` or the baseline in `xtask/semver-baseline` (`latest`: the newest release tag; `cargo xtask check` skips the step while the repository has none), with the release type fixed to minor so that every breaking change is reported. Findings that are breaking for the tool but source-compatible by design are listed one by one in `xtask/semver-allow` (lint name, item path, reason) under a `baseline <tag>` line; against that release the step fails on an unlisted finding and on a listed entry that no longer occurs, and against any other release the entries are ignored |
 
 **Android** needs an emulator running (`emulator -avd <name>`), with KVM for speed.
 The x86_64 emulator image runs the tests; `aarch64-linux-android` is built but not

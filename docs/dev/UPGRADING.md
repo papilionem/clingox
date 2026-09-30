@@ -126,8 +126,9 @@ touched.
 
 ### 1.9 Update the version and the documents
 
-- The release pull request (`docs/dev/RELEASING.md`) sets the version of the three
-  crates and the `=` requirements between them, by the rule of 1.1. Within `508.2.x`
+- The release commit (`docs/dev/RELEASING.md`) sets the version of the three
+  crates and the `=` requirements between them, by the rule of 1.1; the release
+  workflow refuses a version whose number does not name the vendored clingo. Within `508.2.x`
   no breaking change of the Rust API is allowed; a change that breaks it waits for
   the next clingo version.
 - System library range in `clingox-sys/build.rs` and DESIGN §5.1.

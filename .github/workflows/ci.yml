@@ -7,11 +7,15 @@
 #
 # Trigger policy:
 #   pull_request   tier 1: lint, `xtask check`, tests on four hosts, WASM on
-#                  Node.js, MSRV, cargo-deny, semver.
+#                  Node.js, MSRV, cargo-deny, zizmor, semver.
 #   push to main   everything: tier 1 plus the extra hosts, iOS, Android,
 #                  browsers, sanitizers, Miri and the BSDs.
 #   schedule       nightly.yml calls this workflow, so the same full matrix
 #                  runs on a schedule; `github.event_name` is then `schedule`.
+#   release tag    release.yml calls this workflow on the tagged commit. The
+#                  event is then the tag push (`push`, ref refs/tags/v...), and
+#                  the nightly-only jobs run too: a release runs every job (the
+#                  experimental ones still only report, as everywhere).
 #
 # Branch protection should require the single `conclusion` job, which is green
 # only when every job that ran succeeded (jobs skipped by the trigger policy
@@ -187,6 +191,21 @@ jobs:
         with:
           tool: cargo-deny
       - run: cargo deny check
+
+  # The workflows themselves: template injection, unpinned actions, broad
+  # permissions, persisted credentials (offline audits; a finding fails the job).
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+        with:
+          tool: zizmor@1.30.1
+      - run: zizmor --offline --format=github .github/workflows
 
   semver:
     name: cargo-semver-checks
@@ -620,12 +639,13 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo test --locked --target i686-pc-windows-msvc -p clingox-sys -p clingox
 
-  # armv7 Linux, cross-compiled and run under qemu-user (nightly only: an
-  # emulated run is slow). binfmt lets the tests' child processes start the
-  # test binary again; QEMU_LD_PREFIX gives those children the target libc.
+  # armv7 Linux, cross-compiled and run under qemu-user (nightly and release
+  # tags only: an emulated run is slow). binfmt lets the tests' child processes
+  # start the test binary again; QEMU_LD_PREFIX gives those children the target
+  # libc.
   armv7-qemu:
     name: test (armv7-unknown-linux-gnueabihf, qemu-user)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     continue-on-error: true # experimental, see PORTABILITY.md
@@ -663,7 +683,7 @@ jobs:
   # run only warns; its executables are an artifact either way.
   android-32bit:
     name: test (Android i686, armv7 by translation)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     continue-on-error: true # experimental, see PORTABILITY.md
@@ -942,6 +962,7 @@ jobs:
       - lint-hosts
       - msrv
       - deny
+      - zizmor
       - semver
       - test
       - compile-fail
