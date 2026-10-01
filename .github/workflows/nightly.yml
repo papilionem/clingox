@@ -58,6 +58,10 @@ jobs:
     timeout-minutes: 90
     env:
       CLINGOX_SYS_CCACHE: auto
+      # The trybuild snapshots match one rustc release with `rust-src`
+      # (xtask/compile-fail-toolchain), and this job has neither pinned. The
+      # `ci / compile-fail` job in the same run checks them on that setup.
+      CLINGOX_SKIP_COMPILE_FAIL: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
