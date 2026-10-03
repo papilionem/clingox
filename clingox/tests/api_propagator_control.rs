@@ -1030,7 +1030,7 @@ impl Propagator for PropagatorControlFullSurface {
         assert!(changes.contains(&-lit_a));
         assert!(level >= 1);
         assert!(assignment.level(lit_a)?.is_some_and(|l| l >= 1));
-        assert!(!trail.level(level)?.is_empty());
+        assert_ne!(trail.level(level)?, []);
         assert_eq!(trail.level(level)?, vec![-lit_a]);
         assert_eq!(assignment.decision(level)?, -lit_a);
         assert_eq!(control.thread_id(), 0);

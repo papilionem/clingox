@@ -371,6 +371,10 @@ impl BackendWriterKind {
 
     /// With [`BackendWriterKind::REIFY`], also reifies strongly connected
     /// components. Meaningless combined with any other kind.
+    ///
+    /// An unpatched clingo 5.8 also turns on step numbers for this bit, as
+    /// [`BackendWriterKind::reify_steps`] should; the vendored build is
+    /// patched (U53).
     #[must_use]
     pub fn reify_sccs(self) -> BackendWriterKind {
         BackendWriterKind(self.0 | 1)
@@ -378,6 +382,9 @@ impl BackendWriterKind {
 
     /// With [`BackendWriterKind::REIFY`], also reifies each incremental step
     /// individually. Meaningless combined with any other kind.
+    ///
+    /// An unpatched clingo 5.8 ignores this bit on its own and passes the SCC
+    /// bit in its place; the vendored build is patched (U53).
     #[must_use]
     pub fn reify_steps(self) -> BackendWriterKind {
         BackendWriterKind(self.0 | 2)
@@ -404,6 +411,11 @@ impl ScopedControl<'_> {
     ///
     /// Like an observer, a backend writer cannot be unregistered once
     /// registered, and stays active for every later grounding on this control.
+    ///
+    /// **A failed write is not reported.** clingo never checks the file after
+    /// opening it, so on a full disk grounding and solving succeed and the
+    /// file is short or empty (U52). Check the file's size or content
+    /// afterwards when it matters.
     ///
     /// # Errors
     ///
@@ -475,7 +487,7 @@ impl ScopedControl<'_> {
     ///
     /// # Errors
     ///
-    /// - Whatever `f` returns, unchanged, if `f` returns `Err` -- except that
+    /// - Whatever `f` returns, unchanged, if `f` returns `Err`, except that
     ///   it still poisons the control by its own kind, exactly as any other
     ///   returned error does (S3): an [`ErrorKind::Logic`] or
     ///   [`ErrorKind::Unknown`] from `f` is not exempt just because it passes
@@ -546,9 +558,9 @@ impl ScopedControl<'_> {
             .map_err(|err| err.context("closing the backend"));
         self.core.handle.resume_logger_panic();
         // A registered observer's own panic
-        // or error, if either fired -- synchronously inside `f` (a plain
-        // directive) or at `clingo_backend_end` just above (a fact's
-        // delayed `output_atom`) -- takes priority over both `result` and
+        // or error, if either fired (synchronously inside `f` for a plain
+        // directive, or at `clingo_backend_end` just above for a fact's
+        // delayed `output_atom`), takes priority over both `result` and
         // `closed` and poisons unconditionally, exactly as it already does
         // for `Control::ground`/`Control::ground_with`.
         // The panic carries the observer's own payload untouched, matching

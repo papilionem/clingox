@@ -147,7 +147,7 @@ fn core_is_empty_when_the_search_is_satisfiable() {
     let mut ctl = grounded("a.");
     let mut handle = ctl.solve_async(&[]).unwrap();
     assert!(handle.get().unwrap().is_sat());
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
 }
 
 #[test]
@@ -162,5 +162,5 @@ fn core_is_empty_when_unsat_does_not_come_from_assumptions() {
     let mut ctl = grounded("a :- not a.");
     let mut handle = ctl.solve_async(&[]).unwrap();
     assert!(handle.get().unwrap().is_unsat());
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
 }

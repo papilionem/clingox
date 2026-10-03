@@ -5,9 +5,11 @@ use crate::control::Control;
 use crate::control::ScopedControl;
 use std::fmt;
 
-use crate::control::ControlCore;
+use crate::control::{ControlCore, ErrorSink};
 use crate::error::Result;
 use crate::raw;
+use crate::segment::PathSegment;
+use crate::walk::Walk;
 
 /// A view of the statistics of a control's last solve call, read by path.
 ///
@@ -24,12 +26,20 @@ use crate::raw;
 ///
 /// Values read before the first solve call are not meaningful:
 /// `summary.times.total` holds a wall-clock timestamp until then. On
-/// WebAssembly, `summary.times.cpu` is 0, because Emscripten's `getrusage`
-/// returns a constant.
+/// WebAssembly, `summary.times.cpu` is 0: Emscripten has no real `getrusage`,
+/// so the vendored build does not ask it (U14).
 ///
 /// The view borrows the control (DESIGN S5), so the control cannot ground or
 /// solve while it is alive. [`Statistics::snapshot`] copies the tree into a
 /// [`StatsTree`] that can outlive it.
+///
+/// **Paths, entries or a snapshot.** Each path method resolves its path from
+/// the root, one level at a time, so it suits a single read. To read the same
+/// entry many times, or to walk the tree, take an entry with
+/// [`root`](Statistics::root) or [`entry`](Statistics::entry): a
+/// [`StatsEntry`] holds clingo's key for one entry, so each step is one
+/// clingo call and builds no path. To keep the numbers after the control
+/// moves on, take a [`snapshot`](Statistics::snapshot).
 ///
 /// # Examples
 ///
@@ -151,6 +161,71 @@ impl<'c> Statistics<'c> {
         self.read("", raw::Stats::snapshot)
     }
 
+    /// The root entry of the tree, to walk it with [`StatsEntry::children`].
+    ///
+    /// It costs nothing and cannot fail: the view already holds the root key.
+    /// The entry has the lifetime of the view's borrow of the control, not of
+    /// the view, so `let root = ctl.statistics()?.root();` compiles, and the
+    /// entry still keeps the control from grounding or solving while it
+    /// lives.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clingox::StatKind;
+    ///
+    /// let ctl = clingox::Control::new()?;
+    /// let root = ctl.statistics()?.root();
+    /// assert_eq!(root.kind()?, StatKind::Map);
+    /// assert_eq!(root.entry("summary.call")?.value()?, 0.0);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    ///
+    /// The entry blocks a solve for as long as it is read afterwards:
+    ///
+    /// ```compile_fail,E0502
+    /// let mut ctl = clingox::Control::new()?;
+    /// let root = ctl.statistics()?.root();
+    /// ctl.solve(&[])?;
+    /// root.kind()?;
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    #[must_use]
+    pub fn root(&self) -> StatsEntry<'c> {
+        StatsEntry {
+            sink: ErrorSink::Control(self.control),
+            key: self.stats.root_key(),
+        }
+    }
+
+    /// The entry at `path`, resolved once: it is [`root`](Statistics::root)
+    /// followed by [`StatsEntry::entry`]. Read it as often as needed without
+    /// resolving the path again.
+    ///
+    /// # Errors
+    ///
+    /// As [`Statistics::value`] for the path:
+    /// [`ErrorKind::Runtime`](crate::ErrorKind::Runtime) for an unknown name,
+    /// an index not below the array's size or a step below a value, none of
+    /// which poisons the control.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// let enumerated = stats.entry("summary.models.enumerated")?;
+    /// assert_eq!(enumerated.value()?, stats.value("summary.models.enumerated")?);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn entry(&self, path: &str) -> Result<StatsEntry<'c>> {
+        let key = self.read(path, |stats| stats.root_key().lookup(path))?;
+        Ok(StatsEntry {
+            sink: ErrorSink::Control(self.control),
+            key,
+        })
+    }
+
     fn read<T>(&self, path: &str, f: impl FnOnce(raw::Stats<'c>) -> Result<T>) -> Result<T> {
         self.control
             .observed(|| format!("reading statistics `{path}`"), |_| f(self.stats))
@@ -163,16 +238,19 @@ impl fmt::Debug for Statistics<'_> {
     }
 }
 
-/// The kind of a statistics entry a caller may ask
+/// The kind of a statistics entry (clingo.h:2100-2106): what
+/// [`StatsEntry::kind`] reports, and what a caller may ask
 /// [`MutableStatistics::push_array`] or [`MutableStatistics::add_map_key`]
-/// to create (clingo.h:2100-2106).
+/// to create.
 ///
 /// `#[non_exhaustive]`, as clingox's other public enums that mirror a C one
 /// are (RULES §4): clingo's statistics types are `value`, `array`, `map`
 /// and `empty`, but `empty` is never a kind to *create* (there is no
 /// `clingo_statistics_type_empty` you would ever pass to `push_array` or
 /// `add_map_key`; an entry becomes `empty` only implicitly), so it is not a
-/// variant here.
+/// variant here. An entry of clingo's type `empty` is reported as
+/// [`Map`](StatKind::Map), as [`StatsTree`] copies it: no tree clingo 5.8.2
+/// builds has one, and an empty map is how the snapshot already shows it.
 ///
 /// # Examples
 ///
@@ -261,6 +339,105 @@ pub enum StatKind {
 /// ```
 pub struct MutableStatistics<'a> {
     stats: raw::MutableStats<'a>,
+}
+
+impl MutableStatistics<'_> {
+    /// The root entry of the map this view is, to read it with
+    /// [`StatsEntry`] while a handler writes.
+    ///
+    /// In [`SolveEventHandler::on_statistics`](crate::SolveEventHandler::on_statistics),
+    /// the `step` and `accumulated` views are the `user_step` and `user_accu`
+    /// maps, not the whole statistics tree: their roots list only what the
+    /// handler added, and they start empty.
+    ///
+    /// The entry borrows the view, so [`set_value`](MutableStatistics::set_value),
+    /// [`push_array`](MutableStatistics::push_array) and
+    /// [`add_map_key`](MutableStatistics::add_map_key), which take `&mut`,
+    /// cannot run while one is alive, and it cannot leave the callback. Read an
+    /// entry after a write to see the new value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::ops::ControlFlow;
+    ///
+    /// use clingox::{Control, MutableStatistics, Part, SolveEventHandler, SolveOptions, StatKind};
+    ///
+    /// struct Mine;
+    ///
+    /// impl SolveEventHandler for Mine {
+    ///     fn on_statistics(
+    ///         &mut self,
+    ///         step: &mut MutableStatistics<'_>,
+    ///         _accumulated: &mut MutableStatistics<'_>,
+    ///     ) -> clingox::Result<ControlFlow<()>> {
+    ///         step.add_map_key("", "mine", StatKind::Value)?;
+    ///         step.set_value("mine", 1.0)?;
+    ///         assert_eq!(step.root().entry("mine")?.value()?, 1.0);
+    ///         Ok(ControlFlow::Continue(()))
+    ///     }
+    /// }
+    ///
+    /// let mut ctl = Control::with_args(["--stats=2"])?;
+    /// ctl.add_base("a.")?;
+    /// ctl.ground(&[Part::base()])?;
+    /// ctl.solve_with_events(SolveOptions::new(), Mine)?;
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    #[must_use]
+    pub fn root(&self) -> StatsEntry<'_> {
+        StatsEntry {
+            sink: ErrorSink::None,
+            key: self.stats.root_key(),
+        }
+    }
+
+    /// The entry at `path` below [`root`](MutableStatistics::root), resolved
+    /// once.
+    ///
+    /// # Errors
+    ///
+    /// As [`MutableStatistics::value`] for the path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::ops::ControlFlow;
+    ///
+    /// use clingox::{Control, MutableStatistics, Part, SolveEventHandler, SolveOptions, StatKind};
+    ///
+    /// struct Mine;
+    ///
+    /// impl SolveEventHandler for Mine {
+    ///     fn on_statistics(
+    ///         &mut self,
+    ///         step: &mut MutableStatistics<'_>,
+    ///         _accumulated: &mut MutableStatistics<'_>,
+    ///     ) -> clingox::Result<ControlFlow<()>> {
+    ///         step.add_map_key("", "mine", StatKind::Value)?;
+    ///         assert_eq!(step.entry("mine")?.kind()?, StatKind::Value);
+    ///         assert!(step.entry("nosuch").is_err());
+    ///         Ok(ControlFlow::Continue(()))
+    ///     }
+    /// }
+    ///
+    /// let mut ctl = Control::with_args(["--stats=2"])?;
+    /// ctl.add_base("a.")?;
+    /// ctl.ground(&[Part::base()])?;
+    /// ctl.solve_with_events(SolveOptions::new(), Mine)?;
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn entry(&self, path: &str) -> Result<StatsEntry<'_>> {
+        let key = self
+            .stats
+            .root_key()
+            .lookup(path)
+            .map_err(|e| e.context(format!("reading statistics `{path}`")))?;
+        Ok(StatsEntry {
+            sink: ErrorSink::None,
+            key,
+        })
+    }
 }
 
 impl<'a> MutableStatistics<'a> {
@@ -362,6 +539,363 @@ impl<'a> MutableStatistics<'a> {
 impl fmt::Debug for MutableStatistics<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MutableStatistics").finish_non_exhaustive()
+    }
+}
+
+/// One entry of the statistics, held by clingo's key for it.
+///
+/// An entry is a small `Copy` value that reads its own kind, value and size,
+/// and steps to a child by name, index or relative path. A step to an array
+/// element is one clingo call, and to a map entry three (its name, the check
+/// that the map has it, and the entry), which is what makes a walk through
+/// entries cheaper than the same walk through the path methods of
+/// [`Statistics`], which also resolve every path from the root. An entry does not
+/// know its own path: the iterator [`StatsEntry::children`] hands each child
+/// over with its [`PathSegment`].
+///
+/// Every error is [`ErrorKind::Runtime`](crate::ErrorKind::Runtime) and does
+/// not poison the control: the type and the name or index of each step are
+/// checked before clingo is asked, where clingo itself would raise a logic
+/// error. An entry made by [`Statistics`] borrows the control as the view
+/// does; one made by [`MutableStatistics`] cannot leave the callback. An entry
+/// is not `Send`, like the views.
+///
+/// # Examples
+///
+/// ```
+/// use clingox::{Control, Part, StatKind};
+///
+/// let mut ctl = Control::with_args(["--models=0"])?;
+/// ctl.add_base("{a;b}.")?;
+/// ctl.ground(&[Part::base()])?;
+/// ctl.solve(&[])?;
+/// let models = ctl.statistics()?.entry("summary.models")?;
+/// assert_eq!(models.kind()?, StatKind::Map);
+/// assert_eq!(models.entry("enumerated")?.value()?, 4.0);
+/// assert_eq!(models.len()?, 2);
+/// # Ok::<(), clingox::Error>(())
+/// ```
+#[derive(Clone, Copy)]
+pub struct StatsEntry<'a> {
+    sink: ErrorSink<'a>,
+    key: raw::StatsKey<'a>,
+}
+
+impl<'a> StatsEntry<'a> {
+    /// Runs one read of the entry with the per-call guard of the entry types
+    /// (`refusal` before, `note` on an error), without closing a search: the
+    /// view closed any leftover search when it was made, and none can open
+    /// while the borrow lives. A poisoning while an entry lives cannot be
+    /// produced through the public API, so `refusal` is a check that nothing
+    /// reaches today.
+    fn read<T>(
+        &self,
+        context: impl FnOnce() -> String,
+        f: impl FnOnce(raw::StatsKey<'a>) -> Result<T>,
+    ) -> Result<T> {
+        self.sink
+            .refusal()
+            .and_then(|()| f(self.key))
+            .map_err(|err| self.sink.note(err.context(context())))
+    }
+
+    /// What kind of entry this is. clingo's own `empty` is reported as
+    /// [`StatKind::Map`], as [`StatsTree`] copies it.
+    ///
+    /// # Errors
+    ///
+    /// Only [`ErrorKind::Poisoned`](crate::ErrorKind::Poisoned) for a
+    /// poisoned control.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clingox::StatKind;
+    ///
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// assert_eq!(stats.entry("summary")?.kind()?, StatKind::Map);
+    /// assert_eq!(stats.entry("summary.costs")?.kind()?, StatKind::Array);
+    /// assert_eq!(stats.entry("summary.call")?.kind()?, StatKind::Value);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn kind(&self) -> Result<StatKind> {
+        self.read(
+            || "reading the kind of a statistics entry".to_owned(),
+            raw::StatsKey::stat_kind,
+        )
+    }
+
+    /// The number at a value entry. This is [`Statistics::value`] on the
+    /// entry.
+    ///
+    /// # Errors
+    ///
+    /// [`ErrorKind::Runtime`](crate::ErrorKind::Runtime) for a map, an array
+    /// or an `empty` entry ("the entry is a map, not a value"), which clingo
+    /// itself would raise as a logic error that poisons. Here it does not
+    /// poison.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clingox::ErrorKind;
+    ///
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// assert_eq!(stats.entry("summary.call")?.value()?, 0.0);
+    /// let err = stats.entry("summary")?.value().unwrap_err();
+    /// assert_eq!(err.kind(), ErrorKind::Runtime);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn value(&self) -> Result<f64> {
+        self.read(
+            || "reading a statistics entry".to_owned(),
+            raw::StatsKey::value,
+        )
+    }
+
+    /// The number of children: the entries of a map, the elements of an array,
+    /// and 0 for a value or an `empty` entry. It is the number of items
+    /// [`children`](StatsEntry::children) yields.
+    ///
+    /// It differs from [`ConfigEntry::len`](crate::ConfigEntry::len), which is
+    /// an error for an entry that is not an array.
+    ///
+    /// # Errors
+    ///
+    /// Only [`ErrorKind::Poisoned`](crate::ErrorKind::Poisoned) for a
+    /// poisoned control.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// assert_eq!(stats.entry("summary.models")?.len()?, 2);
+    /// assert_eq!(stats.entry("summary.call")?.len()?, 0);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    #[allow(
+        clippy::len_without_is_empty,
+        reason = "the entry types of the two trees share one vocabulary, and an is_empty \
+                  on one of them alone would suggest a rule the other does not follow"
+    )]
+    pub fn len(&self) -> Result<usize> {
+        self.read(
+            || "sizing a statistics entry".to_owned(),
+            |key| key.shape().map(raw::Shape::len),
+        )
+    }
+
+    /// The names of a map, in clingo's order, or the indices of an array as
+    /// text; a value has none. This is [`Statistics::keys`] on the entry.
+    ///
+    /// # Errors
+    ///
+    /// Only [`ErrorKind::Poisoned`](crate::ErrorKind::Poisoned) for a
+    /// poisoned control.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// assert_eq!(stats.entry("summary.models")?.keys()?, ["enumerated", "optimal"]);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn keys(&self) -> Result<Vec<String>> {
+        self.read(
+            || "listing a statistics entry".to_owned(),
+            raw::StatsKey::keys,
+        )
+    }
+
+    /// The entry at `path`, relative to this one, walked one checked level at
+    /// a time as [`Statistics::value`] walks a path from the root. The empty
+    /// path is the entry itself. The path is relative: `models` below the
+    /// entry `summary.models` is an error.
+    ///
+    /// # Errors
+    ///
+    /// [`ErrorKind::Runtime`](crate::ErrorKind::Runtime) for an unknown name,
+    /// an index not below the array's size, a step below a value, or a name
+    /// with a NUL byte (which no entry has). It does not poison the control.
+    /// The message names the part that is missing.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// let summary = stats.entry("summary")?;
+    /// let models = summary.entry("models")?;
+    /// assert_eq!(
+    ///     models.entry("enumerated")?.value()?,
+    ///     summary.entry("models.enumerated")?.value()?
+    /// );
+    /// assert!(summary.entry("summary").is_err());
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn entry(&self, path: &str) -> Result<StatsEntry<'a>> {
+        let sink = self.sink;
+        self.read(
+            || format!("resolving `{path}` from a statistics entry"),
+            |key| key.lookup(path),
+        )
+        .map(|key| StatsEntry { sink, key })
+    }
+
+    /// The children of the entry, each with its [`PathSegment`], in clingo's
+    /// order: `Name` for the entries of a map, `Index` for the elements of an
+    /// array, nothing for a value or an `empty` entry.
+    ///
+    /// Each name of a map is checked against the map before it is read, as
+    /// [`entry`](StatsEntry::entry) checks the caller's names, so no clingo
+    /// logic error can come from a walk. The iterator returns an error once
+    /// and then ends.
+    ///
+    /// # Errors
+    ///
+    /// Only [`ErrorKind::Poisoned`](crate::ErrorKind::Poisoned) for a
+    /// poisoned control.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use clingox::{PathSegment, StatsEntry};
+    ///
+    /// fn count(entry: StatsEntry<'_>) -> clingox::Result<usize> {
+    ///     let mut n = 1;
+    ///     for child in entry.children()? {
+    ///         n += count(child?.1)?;
+    ///     }
+    ///     Ok(n)
+    /// }
+    ///
+    /// let ctl = clingox::Control::new()?;
+    /// let stats = ctl.statistics()?;
+    /// let mut children = stats.root().children()?;
+    /// let (segment, _) = children.next().expect("a first child")?;
+    /// assert_eq!(segment, PathSegment::Name("problem".to_owned()));
+    /// assert!(count(stats.root())? > 20);
+    /// # Ok::<(), clingox::Error>(())
+    /// ```
+    pub fn children(&self) -> Result<StatsChildren<'a>> {
+        let (side, walk) = self.read(
+            || "listing the children of a statistics entry".to_owned(),
+            |key| {
+                Ok(match key.shape()? {
+                    raw::Shape::Array(len) => (Side::Elements, Walk::new(len)),
+                    raw::Shape::Map(len) => (Side::Names, Walk::new(len)),
+                    raw::Shape::Leaf => (Side::Names, Walk::finished()),
+                })
+            },
+        )?;
+        Ok(StatsChildren {
+            entry: *self,
+            side,
+            walk,
+        })
+    }
+}
+
+impl fmt::Debug for StatsEntry<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        /// A value, or the error that kept clingo from reporting it.
+        struct Read<T>(Result<T>);
+        impl<T: fmt::Debug> fmt::Debug for Read<T> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match &self.0 {
+                    Ok(value) => value.fmt(f),
+                    Err(err) => write!(f, "<{err}>"),
+                }
+            }
+        }
+        let mut debug = f.debug_struct("StatsEntry");
+        let kind = self.kind();
+        let shown = kind.as_ref().ok().copied();
+        debug.field("kind", &Read(kind));
+        match shown {
+            Some(StatKind::Value) => {
+                debug.field("value", &Read(self.value()));
+            }
+            Some(_) => {
+                debug.field("len", &Read(self.len()));
+            }
+            None => {}
+        }
+        debug.finish()
+    }
+}
+
+/// Which children a [`StatsChildren`] reads.
+#[derive(Clone, Copy)]
+enum Side {
+    Elements,
+    Names,
+}
+
+/// The children of a statistics entry, made by [`StatsEntry::children`].
+///
+/// It yields each child with its [`PathSegment`]: `Name` for the entries of a
+/// map, `Index` for the elements of an array. After an error it returns that
+/// error once and then `None`, and it is fused.
+///
+/// # Examples
+///
+/// ```
+/// use clingox::PathSegment;
+///
+/// let ctl = clingox::Control::new()?;
+/// let models = ctl.statistics()?.entry("summary.models")?;
+/// let names: Vec<PathSegment> = models
+///     .children()?
+///     .map(|child| child.map(|(segment, _)| segment))
+///     .collect::<clingox::Result<_>>()?;
+/// assert_eq!(
+///     names,
+///     [PathSegment::Name("enumerated".to_owned()), PathSegment::Name("optimal".to_owned())],
+/// );
+/// # Ok::<(), clingox::Error>(())
+/// ```
+pub struct StatsChildren<'a> {
+    entry: StatsEntry<'a>,
+    side: Side,
+    walk: Walk,
+}
+
+impl<'a> Iterator for StatsChildren<'a> {
+    type Item = Result<(PathSegment, StatsEntry<'a>)>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry = self.entry;
+        let side = self.side;
+        self.walk.step(|position| {
+            let sink = entry.sink;
+            entry
+                .read(
+                    || "listing the children of a statistics entry".to_owned(),
+                    |key| match side {
+                        Side::Elements => {
+                            Ok((PathSegment::Index(position), key.array_at(position)?))
+                        }
+                        Side::Names => {
+                            let (name, child) = key.map_entry(position)?;
+                            Ok((PathSegment::Name(name), child))
+                        }
+                    },
+                )
+                .map(|(segment, key)| (segment, StatsEntry { sink, key }))
+        })
+    }
+}
+
+impl std::iter::FusedIterator for StatsChildren<'_> {}
+
+impl fmt::Debug for StatsChildren<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StatsChildren").finish_non_exhaustive()
     }
 }
 

@@ -867,7 +867,7 @@ fn a_leftover_search_is_closed_before_the_session() {
     assert!(format!("{ctl:?}").contains("idle"), "{ctl:?}");
     ctl.ground(&[Part::new("p", &[]).unwrap()]).unwrap();
     let (_, models) = ctl.solve_all().unwrap();
-    assert!(!models.is_empty());
+    assert_ne!(models, []);
     assert!(
         models.iter().all(|m| m.symbols().contains(&sym("a"))),
         "every model has the added fact"

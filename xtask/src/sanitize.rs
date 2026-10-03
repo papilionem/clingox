@@ -37,7 +37,7 @@ const SKIPPED: [&str; 4] = [
 ];
 
 /// The thread tests that run under the thread sanitizer.
-const THREAD_TESTS: [&str; 18] = [
+const THREAD_TESTS: [&str; 20] = [
     "api_threads",
     "patch_u19_statistics_registry",
     "interrupt_races",
@@ -46,6 +46,8 @@ const THREAD_TESTS: [&str; 18] = [
     "api_solve_options",
     "threads_optimisation",
     "solve_events_interrupt_races",
+    // The timeout thread retrying an interrupt until a late search starts.
+    "timeout_before_the_search_starts",
     "api_statistics_writing",
     // Races only TSan catches reliably (`AsyncSolveHandle::core` racing the
     // end of the search, and `Control::is_conflicting`/the enable getters
@@ -72,6 +74,10 @@ const THREAD_TESTS: [&str; 18] = [
     // the calling thread for an async solve), and a failing printer at `-t4`
     // followed by updates of the control (the U26 pattern).
     "application_printer_threads",
+    // A blocking solve runs on the calling thread when no handle exists
+    // and on clasp's thread otherwise; the test switches between the two
+    // while another thread interrupts, 500 times on one control.
+    "blocking_solve_mode",
 ];
 
 /// The suppressions for the races inside clasp that UPSTREAM-ISSUES records.

@@ -14,13 +14,14 @@
 //! returns `false` to clingo, for any event, including the model event.**
 //! clingo's own internal event handler (`control.cc:1988-2020`, see
 //! `docs/dev/UPSTREAM-ISSUES.md` U25) calls
-//! `clingo_terminate` -- an unconditional, unwind-free `std::_Exit(1)` -- if
+//! `clingo_terminate` (an unconditional, unwind-free `std::_Exit(1)`) if
 //! the trampoline ever returns `false` for the unsat, statistics or finish
 //! event, so those three never could. The model event technically has a
 //! safe `false` return (clingo's own `throw ClingoError()`, an ordinary
 //! exception, `control.cc:1993-1997`), but taking it leaves clasp itself
-//! inconsistent when the search is an async parallel one (also the
-//! blocking `solve_with_events`, which runs in async mode): the next update
+//! inconsistent when the search is an async parallel one (the blocking
+//! `solve_with_events` is one whenever it runs in async mode, with a timeout
+//! or a live `InterruptHandle`): the next update
 //! after such a search reads out of bounds inside clasp (U26).
 //! So every event, including the model event, is handled the same way: an
 //! `Err` or a panic from `on_model`, `on_unsat`, `on_statistics` or
@@ -62,7 +63,7 @@ use crate::stats::MutableStatistics;
 /// sequentially"), and the finish event (with the statistics event immediately
 /// before it) fires once per step from whichever single thread completes it
 /// (S13). The mutex is therefore not load-bearing against genuine concurrent
-/// calls from clasp -- there are none to guard against -- but it is the one,
+/// calls from clasp (there are none to guard against), but it is the one,
 /// simple, audited reason `&mut H` is sound to hand the user's methods, rather
 /// than a conclusion that depends on tracing every path through clasp's event
 /// delivery and hoping a future clasp version keeps them serialised. A poisoned
@@ -95,7 +96,7 @@ pub(crate) trait EventHandlerSlots {
     /// A copy of the recorded callback error, if any (first writer wins, S8): a
     /// *peek*, not a take: the handler's own error is reported on every later
     /// call on the same search, not only the first one to read this, so the
-    /// slot itself is never emptied by reading it -- only
+    /// slot itself is never emptied by reading it; only
     /// [`Error::repeatable_copy`] leaves it, and the same stored error is still
     /// there, unchanged, for the next caller. The handler itself is never
     /// re-entered once this is set, independently of whether it has been read

@@ -10,7 +10,7 @@ use clingox_sys as ffi;
 
 use super::capture::{Capture, MESSAGE_LIMIT};
 use super::trampoline::logger;
-use super::{RawSymbol, borrowed_str, c_str, call, fill_string, query, raw_slice, with_c_str};
+use super::{RawSymbol, borrowed_str, c_str, call, fill_bytes, query, raw_slice, with_c_str};
 use crate::Symbol;
 use crate::error::{Error, ErrorKind, Message, MessageCode};
 
@@ -153,11 +153,32 @@ pub(crate) fn symbol_arguments(symbol: RawSymbol) -> Result<&'static [Symbol], E
     Ok(unsafe { raw_slice(arguments.cast::<Symbol>(), size) })
 }
 
+/// The text clingo prints for `symbol`; `Utf8` if a string in it is not
+/// valid UTF-8, which only a string read from a file can be.
 pub(crate) fn symbol_to_string(symbol: RawSymbol) -> Result<String, Error> {
-    fill_string(
+    String::from_utf8(symbol_to_bytes(symbol)?).map_err(|e| {
+        Error::new(
+            ErrorKind::Utf8,
+            format!("clingo printed a symbol that is {}", e.utf8_error()),
+        )
+    })
+}
+
+/// As [`symbol_to_string`], with U+FFFD in place of invalid UTF-8, the rule
+/// of [`static_str`]: for display, which must not fail on such a string.
+pub(crate) fn symbol_to_string_lossy(symbol: RawSymbol) -> Result<String, Error> {
+    let bytes = symbol_to_bytes(symbol)?;
+    Ok(match String::from_utf8(bytes) {
+        Ok(text) => text,
+        Err(e) => String::from_utf8_lossy(e.as_bytes()).into_owned(),
+    })
+}
+
+fn symbol_to_bytes(symbol: RawSymbol) -> Result<Vec<u8>, Error> {
+    fill_bytes(
         // SAFETY: `size` is a valid out-pointer (clingo.h:447).
         |size| query(|| unsafe { ffi::clingo_symbol_to_string_size(symbol, size) }),
-        // SAFETY: fill_string passes a buffer of exactly the size clingo asked for,
+        // SAFETY: fill_bytes passes a buffer of exactly the size clingo asked for,
         // including the NUL (clingo.h:457).
         |buffer, size| query(|| unsafe { ffi::clingo_symbol_to_string(symbol, buffer, size) }),
     )

@@ -66,9 +66,9 @@ impl ProgramLiteral {
     /// as a *literal* rather than a bare variable, clasp treats 2^28 and above
     /// as a body id instead of an atom id (`clasp/src/logic_program.cpp`). A
     /// literal at or beyond that narrower bound reached clasp's own body-id
-    /// numbering and failed there instead -- `Model::is_true` with
+    /// numbering and failed there instead: `Model::is_true` with
     /// `ErrorKind::Logic`, `Backend::add_rule` with `ErrorKind::Runtime`,
-    /// checked directly against clingo 5.8.2 -- so clingox now matches clasp's
+    /// checked directly against clingo 5.8.2, so clingox now matches clasp's
     /// atom range, not its wider variable range.
     pub const MAX_MAGNITUDE: i32 = (1 << 28) - 1;
 
@@ -126,7 +126,7 @@ impl ProgramLiteral {
     /// [`TheoryElement::condition_id`](crate::TheoryElement::condition_id),
     /// whose own value is documented as "not necessarily an aspif literal" and,
     /// checked directly against clingo 5.8.2, is a real id from clasp's body-id
-    /// range (`2^28` and above) -- exactly the range
+    /// range (`2^28` and above), exactly the range
     /// [`MAX_MAGNITUDE`](ProgramLiteral::MAX_MAGNITUDE) now excludes for an
     /// ordinary literal, since it is narrowed to clasp's atom range. Rejects
     /// only `0`, `ProgramLiteral`'s own unconditional invariant (the sign still

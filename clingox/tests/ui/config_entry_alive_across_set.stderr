@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `conf` as mutable because it is also borrowed as immutable
+  --> tests/ui/config_entry_alive_across_set.rs:10:13
+   |
+ 9 |     let root = conf.root().unwrap();
+   |                ---- immutable borrow occurs here
+10 |     let _ = conf.set("solve.models", "0");
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+11 |     let _kind = root.kind();
+   |                 ---- immutable borrow later used here

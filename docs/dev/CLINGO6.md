@@ -31,8 +31,6 @@ Not run: U11, U20 and U21 (static only), Android ARM64 (U18), a build without th
 event and U1's `clingo_parse_term`-style path were not exercised. The Python module was
 not built.
 
-Status tags: **(run)** reproduced or checked by executing wip-20; **(static)** decided from source only. The Python module was not built (as instructed). A second build with ThreadSanitizer (`build-tsan`) ran U12, U19 and U28. Not run: U11, U20, U21 (static only), Android ARM64 (U18), a no-threads build (U46), the toolchain items, U2, U10, U24, U27, U36, U37, U45. U1's `clingo_parse_term`-style path and the `unsat` solve event were not exercised.
-
 Status tags: **(run)** means reproduced or checked by executing wip-20; **(static)**
 means decided from source only.
 

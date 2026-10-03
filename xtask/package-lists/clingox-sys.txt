@@ -278,6 +278,7 @@ clingo/third_party/variant/include/mpark/variant.hpp
 clingo/third_party/wide-integer/LICENSE_1_0.txt
 clingo/third_party/wide-integer/math/wide_integer/uintwide_t.h
 patches/U1-division-traps.patch
+patches/U14-emscripten-getrusage.patch
 patches/U19-statistics-type-registry.patch
 patches/U2-leak-symbol-table.patch
 patches/U35-external-rewrite-arithmetics.patch
@@ -285,5 +286,6 @@ patches/U46-app-finish-without-threads.patch
 patches/U47-ast-refcount-overflow.patch
 patches/U49-range-binder-int-max.patch
 patches/U50-parallel-split-leak.patch
+patches/U53-reify-steps.patch
 src/bindings.rs
 src/lib.rs

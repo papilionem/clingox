@@ -462,7 +462,7 @@ fn libclingo_solve_iter() {
     let mut ctl = grounded("a.");
     let (result, models) = ctl.solve_all().unwrap();
     assert!(result.is_sat());
-    assert!(!models.is_empty());
+    assert_ne!(models, []);
     assert!(models[0].contains(sym("a")));
 }
 
@@ -547,7 +547,7 @@ fn libclingo_bug_classical_1() {
     assert!(a_found);
     // Count signatures
     let sigs = atoms.signatures().unwrap();
-    assert!(!sigs.is_empty());
+    assert_ne!(sigs, []);
 }
 
 // -------------------------------------------------------------------------
@@ -1478,7 +1478,7 @@ fn libclingo_pos_strat() {
     let (result, models) = ctl.solve_all().unwrap();
     assert!(result.is_sat());
     assert_eq!(models.len(), 1);
-    assert!(models[0].symbols().is_empty());
+    assert_eq!(models[0].symbols(), []);
 }
 
 // -------------------------------------------------------------------------

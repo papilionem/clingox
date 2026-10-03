@@ -97,7 +97,7 @@ clingo for Rust. clingox is a different design, and the differences below are th
 reasons to choose it.
 
 **A current clingo, with fixes.** The `clingo` crate binds clingo 5.6.2. clingox
-builds clingo 5.8.2 from vendored source, and applies eight small patches at build
+builds clingo 5.8.2 from vendored source, and applies ten small patches at build
 time for defects in clingo and clasp that a safe binding cannot work around from
 Rust. Each patch fixes one entry of [`docs/dev/UPSTREAM-ISSUES.md`][upstream] and has
 a test that fails without it:
@@ -106,15 +106,17 @@ a test that fails without it:
 |---|---|
 | U1 | Integer division by zero, or `INT_MIN / -1`, in program text or a term raised SIGFPE and ended the process. |
 | U2 | The symbol table was destroyed at process exit while other threads could still use symbols. |
+| U14 | clasp asked Emscripten's stubbed `getrusage` for CPU time, and its debug build printed a warning on every call. |
 | U19 | clasp's registry of statistic types raced when controls first solved on several threads. |
 | U35 | Grounding an `#external` with an arithmetic type term dereferenced a null pointer. |
 | U46 | An application's control delivered no statistics or finish event in builds without threads. |
 | U47 | An AST node's reference count wrapped after 2^32 clones, a use after free from safe Rust. It now aborts, like `Rc`. |
 | U49 | A numeric range that ends at `INT_MAX` never finished grounding. |
 | U50 | A parallel search interrupted while splitting leaked its queued guiding paths. |
+| U53 | A backend writer ignored `reify_steps`, and `reify_sccs` added step numbers too. |
 
 The patches apply to vendored builds only. A system clingo (`>= 5.8.1, < 5.9.0`)
-keeps these defects, and the guide says so. The record has 50 entries (one is a
+keeps these defects, and the guide says so. The record has 54 entries (one is a
 pyclingo bug), each with its evidence and what clingox does about it.
 
 **Guards that make misuse a Rust error.** The design rules are in
@@ -141,8 +143,8 @@ pyclingo bug), each with its evidence and what clingox does about it.
 32-bit x86, and ARMv7 under qemu), macOS (ARM64 and x86_64), Windows with MSVC
 (x64, ARM64 and 32-bit x86), FreeBSD, NetBSD and OpenBSD, on Android emulators
 (x86_64 and 32-bit x86) and the iOS simulator, and on WebAssembly under Node.js,
-Chromium, Firefox and WebKit. Some of these jobs are experimental; the guide's
-[platform table][platforms] says which, and what each one runs. AddressSanitizer
+Chromium, Firefox and WebKit. The guide's [platform table][platforms] says what
+each one runs. AddressSanitizer
 with LeakSanitizer and ThreadSanitizer run over the suite on Linux, and Miri runs
 the unit tests and the callback trampolines.
 In `clingox`, `unsafe` code is confined to one internal module (`raw`), with a
@@ -182,7 +184,9 @@ from [the clingo crate][from-crate] and from [pyclingo][from-pyclingo].
 - **Performance has a measured cost.** Against clingo's C++ API on the same clingo
   5.8.2, grounding and solving take the same time, and small calls (creating or
   reading a symbol, stepping to the next model) cost 20 to 200 ns more each.
-  Reading configuration and statistics by path costs two to four times as much. The
+  Reading configuration and statistics by path costs two to four times as much;
+  through entries (`Configuration::root`, `Statistics::root`) a configuration walk
+  costs 1.6 times C++'s. The
   guide's [performance page][performance] and
   [`docs/dev/BENCHMARKS.md`][benchmarks] have the numbers, including a comparison
   with the `clingo` crate and pyclingo.

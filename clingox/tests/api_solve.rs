@@ -560,7 +560,7 @@ fn solve_optimal_without_optimisation_returns_one_model() {
         panic!("{{a;b}} is satisfiable");
     };
     assert_eq!(model.number(), 1);
-    assert!(model.cost().is_empty());
+    assert_eq!(model.cost(), []);
     assert!(!model.optimality_proven());
 }
 
@@ -658,7 +658,7 @@ fn solve_all_of_an_unsatisfiable_program_is_empty() {
     let mut ctl = grounded(&[], "a :- not a.");
     let (result, models) = ctl.solve_all().unwrap();
     assert!(result.is_unsat());
-    assert!(models.is_empty());
+    assert_eq!(models, []);
 }
 
 #[test]
@@ -666,7 +666,7 @@ fn solve_all_of_an_undecided_search_reports_unknown() {
     let mut ctl = grounded(&["--solve-limit=1"], PIGEONS);
     let (result, models) = ctl.solve_all().unwrap();
     assert!(result.is_unknown());
-    assert!(models.is_empty());
+    assert_eq!(models, []);
 }
 
 // ---------------------------------------------------------------------------

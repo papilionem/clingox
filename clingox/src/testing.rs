@@ -243,8 +243,8 @@ mod tests {
             split_terms(r#" a p(1, 2)  s("a b\" c)") t((1, 2),f( g ))"#).unwrap(),
             ["a", "p(1, 2)", r#"s("a b\" c)")"#, "t((1, 2),f( g ))"]
         );
-        assert!(split_terms("").unwrap().is_empty());
-        assert!(split_terms(" \t\n").unwrap().is_empty());
+        assert_eq!(split_terms("").unwrap(), Vec::<&str>::new());
+        assert_eq!(split_terms(" \t\n").unwrap(), Vec::<&str>::new());
     }
 
     #[test]

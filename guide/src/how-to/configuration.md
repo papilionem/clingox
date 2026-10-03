@@ -155,10 +155,65 @@ exist only in builds with threads, so a default WebAssembly build rejects them
 
 ## Walk the whole tree
 
-`kind` says what an entry is, so a program can walk the tree without guessing:
-`ConfigKind::Value` is read with `get`, `Map` with `keys`, `Array` with `len`
-and `element`, and `ArrayMap` (only `solver`) is walked as an array. This
-prints every option with its value:
+`Configuration::root` gives the root entry, and `children` lists what is below
+an entry. An entry holds clingo's own key for one place in the tree, so a step
+of a walk costs one or two calls into clingo and no path is built or resolved.
+`kind` says what an entry is: `ConfigKind::Value` is read with `value`, `Map`
+and `Array` are walked with `children`, and `ArrayMap` (only `solver`) is
+walked as an array, so each option is visited once. `children` hands over each
+child with a `PathSegment`, the name or index it has under its parent, which
+`Display` writes the way a path does. This prints every option with its value:
+
+```rust
+use clingox::{ConfigEntry, ConfigKind, Control};
+
+fn walk(entry: ConfigEntry<'_>, path: &mut Vec<String>, lines: &mut Vec<String>) -> clingox::Result<()> {
+    match entry.kind()? {
+        ConfigKind::Value => {
+            let value = entry.value()?.unwrap_or_default();
+            lines.push(format!("{} = {value}", path.join(".")));
+        }
+        ConfigKind::Array | ConfigKind::ArrayMap | ConfigKind::Map => {
+            for child in entry.children()? {
+                let (segment, child) = child?;
+                path.push(segment.to_string());
+                walk(child, path, lines)?;
+                path.pop();
+            }
+        }
+        // `ConfigKind` is non-exhaustive: a later clingo may add a kind.
+        _ => {}
+    }
+    Ok(())
+}
+
+let mut ctl = Control::new()?;
+let conf = ctl.configuration();
+let mut lines = Vec::new();
+walk(conf.root()?, &mut Vec::new(), &mut lines)?;
+assert!(lines.contains(&"solve.models = -1".to_owned()));
+# Ok::<(), clingox::Error>(())
+```
+
+Bind the view before taking the root: `ctl.configuration().root()?` does not
+compile when the entry is kept, because the view is a temporary. An entry
+borrows the view, so `set` cannot run while one is alive. To change what a walk
+found, collect the paths (the `path.join(".")` above) and set them afterwards.
+
+An entry is also the way to read one option many times: `conf.entry("solve.models")?`
+resolves the path once, and `value` then reads it without resolving it again.
+`entry` on an entry takes a path relative to it, so
+`conf.entry("solve")?.entry("models")?` reads the same option. A single read is
+simpler by path (`conf.get("solve.models")?`); entries pay off for walks and for
+reads that repeat.
+
+`ConfigEntry::len` is the size of an array and an error for anything else, as
+`Configuration::len` is. For `solver`, `keys` lists the options of its first
+element, while `children` lists the elements.
+
+The same walk by path, with `kind`, `get`, `keys`, `len` and `element`, still
+works and gives the same list. It resolves every path from the root, which is
+what makes it two to three times slower:
 
 ```rust
 use clingox::{ConfigKind, Configuration, Control};

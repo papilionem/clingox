@@ -7,4 +7,4 @@
 # every other job. To move the pin, install the new release with rust-src, run
 # the tests with TRYBUILD=overwrite, review the diff, and change the version
 # below in the same commit.
-1.98.1
+1.99.0

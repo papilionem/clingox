@@ -1,0 +1,378 @@
+error[E0277]: `*const clingox_sys::bindings::clingo_statistic` cannot be sent between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- -------^^^^^^^^^^^^
+   |               |     |
+   |               |     `*const clingox_sys::bindings::clingo_statistic` cannot be sent between threads safely
+   |               |     within this `{closure@$DIR/tests/ui/stats_entry_is_not_send.rs:10:21: 10:28}`
+   |               required by a bound introduced by this call
+   |
+   = help: within `{closure@$DIR/tests/ui/stats_entry_is_not_send.rs:10:21: 10:28}`, the trait `Send` is not implemented for `*const clingox_sys::bindings::clingo_statistic`
+note: required because it appears within the type `clingox::raw::stats::Stats<'_>`
+  --> src/raw/stats.rs
+   |
+   | pub(crate) struct Stats<'c> {
+   |                   ^^^^^
+note: required because it appears within the type `clingox::raw::stats::StatsKey<'_>`
+  --> src/raw/stats.rs
+   |
+   | pub(crate) struct StatsKey<'c> {
+   |                   ^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `RefCell<Option<std::string::String>>` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `RefCell<Option<std::string::String>>` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: within `clingox::control::ControlCore`, the trait `Sync` is not implemented for `RefCell<Option<std::string::String>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `NonNull<clingox_sys::bindings::clingo_control>` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `NonNull<clingox_sys::bindings::clingo_control>` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: within `clingox::control::ControlCore`, the trait `Sync` is not implemented for `NonNull<clingox_sys::bindings::clingo_control>`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+  --> src/raw/control.rs
+   |
+   | pub(crate) struct ControlHandle {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `Cell<Option<clingox::raw::solve::ActiveSolve>>` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `Cell<Option<clingox::raw::solve::ActiveSolve>>` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: within `clingox::control::ControlCore`, the trait `Sync` is not implemented for `Cell<Option<clingox::raw::solve::ActiveSolve>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+  --> src/raw/control.rs
+   |
+   | pub(crate) struct ControlHandle {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `Cell<Option<NonNull<clingox_sys::bindings::clingo_backend>>>` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `Cell<Option<NonNull<clingox_sys::bindings::clingo_backend>>>` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: within `clingox::control::ControlCore`, the trait `Sync` is not implemented for `Cell<Option<NonNull<clingox_sys::bindings::clingo_backend>>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+  --> src/raw/control.rs
+   |
+   | pub(crate) struct ControlHandle {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `Cell<Option<NonNull<clingox_sys::bindings::clingo_program_builder>>>` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `Cell<Option<NonNull<clingox_sys::bindings::clingo_program_builder>>>` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: within `clingox::control::ControlCore`, the trait `Sync` is not implemented for `Cell<Option<NonNull<clingox_sys::bindings::clingo_program_builder>>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock`
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+  --> src/raw/control.rs
+   |
+   | pub(crate) struct ControlHandle {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: within `clingox::control::ControlCore`, the trait `Sync` is not implemented for `RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>`
+   = note: if you want to do aliasing and mutation between multiple threads, use `std::sync::RwLock` instead
+note: required because it appears within the type `AssertUnwindSafe<RefCell<Option<Box<(dyn clingox::raw::events::EventHandlerSlots + Send + 'static)>>>>`
+  --> $RUST/core/src/panic/unwind_safe.rs
+   |
+   | pub struct AssertUnwindSafe<T>(#[stable(feature = "catch_unwind", since = "1.9.0")] pub T);
+   |            ^^^^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+  --> src/raw/control.rs
+   |
+   | pub(crate) struct ControlHandle {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`
+
+error[E0277]: `(dyn clingox::raw::observer::ObserverSlots + Send + 'static)` cannot be shared between threads safely
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |               ----- ^^^^^^^^^^^^^^^^^^^ `(dyn clingox::raw::observer::ObserverSlots + Send + 'static)` cannot be shared between threads safely
+   |               |
+   |               required by a bound introduced by this call
+   |
+   = help: the trait `Sync` is not implemented for `(dyn clingox::raw::observer::ObserverSlots + Send + 'static)`
+   = note: required for `std::ptr::Unique<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>` to implement `Sync`
+note: required because it appears within the type `Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>`
+  --> $RUST/alloc/src/boxed.rs
+   |
+   | pub struct Box<
+   |            ^^^
+note: required because it appears within the type `PhantomData<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>`
+  --> $RUST/core/src/marker.rs
+   |
+   | pub struct PhantomData<T: PointeeSized>;
+   |            ^^^^^^^^^^^
+note: required because it appears within the type `alloc::raw_vec::RawVec<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>`
+  --> $RUST/alloc/src/raw_vec/mod.rs
+   |
+   | pub(crate) struct RawVec<T, A: Allocator = Global> {
+   |                   ^^^^^^
+note: required because it appears within the type `Vec<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>`
+  --> $RUST/alloc/src/vec/mod.rs
+   |
+   | pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+   |            ^^^
+note: required because it appears within the type `AssertUnwindSafe<Vec<Box<(dyn clingox::raw::observer::ObserverSlots + Send + 'static)>>>`
+  --> $RUST/core/src/panic/unwind_safe.rs
+   |
+   | pub struct AssertUnwindSafe<T>(#[stable(feature = "catch_unwind", since = "1.9.0")] pub T);
+   |            ^^^^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::raw::control::ControlHandle`
+  --> src/raw/control.rs
+   |
+   | pub(crate) struct ControlHandle {
+   |                   ^^^^^^^^^^^^^
+note: required because it appears within the type `clingox::control::ControlCore`
+  --> src/control.rs
+   |
+   | pub(crate) struct ControlCore {
+   |                   ^^^^^^^^^^^
+   = note: required for `&clingox::control::ControlCore` to implement `Send`
+note: required because it appears within the type `clingox::control::ErrorSink<'_>`
+  --> src/control.rs
+   |
+   | pub(crate) enum ErrorSink<'c> {
+   |                 ^^^^^^^^^
+note: required because it appears within the type `StatsEntry<'_>`
+  --> src/stats.rs
+   |
+   | pub struct StatsEntry<'a> {
+   |            ^^^^^^^^^^
+note: required because it's used within this closure
+  --> tests/ui/stats_entry_is_not_send.rs:10:21
+   |
+10 |         scope.spawn(move || root.kind());
+   |                     ^^^^^^^
+note: required by a bound in `Scope::<'scope, 'env>::spawn`
+  --> $RUST/std/src/thread/scoped.rs
+   |
+   |     pub fn spawn<F, T>(&'scope self, f: F) -> ScopedJoinHandle<'scope, T>
+   |            ----- required by a bound in this associated function
+   |     where
+   |         F: FnOnce() -> T + Send + 'scope,
+   |                            ^^^^ required by this bound in `Scope::<'scope, 'env>::spawn`

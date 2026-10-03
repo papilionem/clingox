@@ -435,7 +435,7 @@ fn script_core1() {
     let mut handle = ctl.solve_yield(&[]).unwrap();
     let result = handle.get().unwrap();
     assert!(result.is_unsat());
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
     run.record_result(result);
 
     assert_script_matches(run, expected);
@@ -479,7 +479,7 @@ fn script_core2() {
     let mut handle = ctl.solve_yield(&[]).unwrap();
     let result = handle.get().unwrap();
     assert!(result.is_unsat());
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
     run.record_result(result);
 
     assert_script_matches(run, expected);

@@ -3,11 +3,11 @@
 #[cfg(doc)]
 use crate::control::Control;
 use crate::control::ScopedControl;
-use std::fmt::Write as _;
 
 use crate::control::{FACTS_PREFIX, Part};
 use crate::convert::ToSymbol;
 use crate::error::{Error, ErrorKind, Result};
+use crate::raw;
 use crate::symbol::{Symbol, SymbolKind};
 
 impl ScopedControl<'_> {
@@ -46,6 +46,10 @@ impl ScopedControl<'_> {
     ///   not a clingo identifier, `_*[a-z][A-Za-z0-9_']*` other than `not`
     ///   (`Foo` would read as a variable). Nothing is added, and the control is
     ///   not poisoned.
+    /// - [`ErrorKind::Utf8`] for a symbol holding a string that is not valid
+    ///   UTF-8, which only a string read from a file can be: written as text, it
+    ///   would become a different fact. Nothing is added, and the control is not
+    ///   poisoned.
     /// - [`ErrorKind::Logic`] for a fact about an atom an earlier step defined,
     ///   such as the head of a choice rule `{p(1)}.` grounded and solved before
     ///   (clingo's "redefinition of atom"). It poisons the control.
@@ -89,9 +93,10 @@ impl ScopedControl<'_> {
         let mut program = String::new();
         for symbol in &symbols {
             check_fact(*symbol).map_err(|e| e.context(context))?;
-            writeln!(program, "{symbol}.").map_err(|_| {
-                Error::new(ErrorKind::BadAlloc, "clingo could not print a symbol").context(context)
-            })?;
+            // Strict, not `Display`: a lossy text would add a different fact.
+            let text = raw::symbol_to_string(symbol.raw()).map_err(|e| e.context(context))?;
+            program.push_str(&text);
+            program.push_str(".\n");
         }
         if symbols.is_empty() {
             return Ok(());

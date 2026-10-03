@@ -288,7 +288,7 @@ fn theory_term_display_never_panics_on_a_function_without_a_name() {
     // The exact text is not contractual for a value clingo itself never
     // produces; only that formatting it does not panic.
     let text = invalid.to_string();
-    assert!(!text.is_empty());
+    assert_ne!(text, "");
 }
 
 /// A `Compound` with `kind` set to `Number` or `Symbol` (the two kinds the

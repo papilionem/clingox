@@ -162,6 +162,11 @@ impl<'c> Theory<'c> {
     }
 
     /// The string representation of a theory term (clingo.h:801-827).
+    ///
+    /// Only the debug-build cross-check of `TheoryTerm`'s `Display` and the
+    /// tests call it, so it is compiled for them alone and a release build has
+    /// no dead code.
+    #[cfg(any(debug_assertions, test))]
     pub(crate) fn term_to_string(self, term: Id) -> Result<String, Error> {
         fill_string(
             |size| {

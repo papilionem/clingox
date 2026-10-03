@@ -36,8 +36,8 @@ clingo, it is undefined behaviour that can segfault the process (checked
 directly against clingo 5.8.2). Every clingox method that takes one
 validates it against the *current* assignment first (`Assignment::
 has_literal` is the primitive this is built from), refusing a literal that
-does not belong to it — including one legitimately obtained from a
-*different* `Control`'s own grounding — with an `InvalidInput` error rather
+does not belong to it (including one legitimately obtained from a
+*different* `Control`'s own grounding) with an `InvalidInput` error rather
 than reaching clingo. Holding onto a `SolverLiteral` past the solving step
 that produced it and reusing it in a later one is the same kind of mistake,
 and is refused the same way.
@@ -46,7 +46,7 @@ and is refused the same way.
 
 A propagator's five methods (`init`, `propagate`, `undo`, `check`,
 `decide`) are dispatch points clingo calls *into*; the reentrancy question
-is about the opposite direction — what a propagator's own call *out*, into
+is about the opposite direction: what a propagator's own call *out*, into
 `PropagateInit`/`PropagateControl`, can cause clingo to call back in, before
 that outer call returns.
 
@@ -55,8 +55,8 @@ clasp releases its own internal lock for the duration of
 (and their `PropagateInit` equivalents during `init`). This is what makes a
 propagator's methods need `&self` rather than `&mut self`, and `Send +
 Sync`: with more than one solver thread, two different threads can call
-`propagate` on the same registered propagator at once, and — the sharper
-case — a single thread's own call into `add_clause` can, in general, cause
+`propagate` on the same registered propagator at once, and, the sharper
+case, a single thread's own call into `add_clause` can, in general, cause
 clingo to call back into that *same* propagator's `undo` before
 `add_clause` itself returns, if the clause it just added forces a conflict
 and a backjump past the propagator's own watched literals.
@@ -66,7 +66,7 @@ Traced directly against the vendored clasp 5.8.2 source for this crate
 sets a flag, `state_ctrl`, that makes `add_clause`'s and `propagate`'s own
 conflict-handling code *defer* the actual backjump instead of resolving it
 inline): in this clasp version, **`undo` never runs while the call that
-triggered it is still on the same thread's own stack** — the backjump is
+triggered it is still on the same thread's own stack**: the backjump is
 always resolved afterward, from clasp's own outer search loop, once
 `add_clause`/`propagate` have already returned. The how-to's own "Forced
 backjump" example measures this directly (a per-thread "currently inside
@@ -87,7 +87,7 @@ it might.
 | Method | Called from | Runs on | If it panics or errors |
 |---|---|---|---|
 | `init` | Once per solving step, before any solver thread exists | The thread that started solving | Poisons the whole `Control` (like a ground callback): the step may be half-configured, so recovery means a new `Control` |
-| `propagate` | Whenever a watched literal becomes true, with a non-empty change set | Any solver thread; concurrently with other threads unless registered with `Control::register_propagator_sequential` | Stops the current solving step; reported by whichever call is running it. Does **not** poison the `Control` — a later, ordinary `solve` on the same control works |
+| `propagate` | Whenever a watched literal becomes true, with a non-empty change set | Any solver thread; concurrently with other threads unless registered with `Control::register_propagator_sequential` | Stops the current solving step; reported by whichever call is running it. Does **not** poison the `Control`: a later, ordinary `solve` on the same control works |
 | `undo` | Whenever the solver undoes assignments to watched literals, to backtrack | The same thread `propagate` ran on for that state; may run while a call this same propagator made into `add_clause`/`propagate` is still on that thread's own stack (see above) | Infallible at the C level (`Result` is not part of its signature); a panic is caught and resumed once the outer call that led here returns, never unwinding into clingo's own C++ frames |
 | `check` | On a propagation fixpoint or a total assignment, as `PropagateInit::set_check_mode` configures; runs even with no watches at all | Any solver thread | As `propagate`: stops the step, does not poison the control |
 | `decide` | Whenever propagation reaches a fixpoint and clasp needs a free literal to decide, in registration order, only once every earlier-registered propagator with a `decide` has declined | Any solver thread | As `propagate`: stops the step, does not poison the control |

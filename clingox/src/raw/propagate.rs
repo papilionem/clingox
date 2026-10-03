@@ -955,7 +955,7 @@ unsafe extern "C" fn decide<P: Propagator, S: ErrorState>(
             // `None` is a real decline: clingo's own documented contract for
             // `decide` is "return 0 to let a propagator registered later make a
             // decision" (H:1567-1568), so `None` must write the raw `0` clingo
-            // checks for, never `fallback`'s own value — writing `fallback`
+            // checks for, never `fallback`'s own value: writing `fallback`
             // unchanged is indistinguishable, at the C level, from a deliberate
             // choice of that literal, and silently blocks every
             // later-registered propagator's own `decide` from ever being asked
@@ -1424,7 +1424,7 @@ mod tests {
     // (not a shared slot across every registered propagator): that difference
     // cannot be observed from an integration test, since clasp itself aborts
     // the whole `init` phase at the first propagator's failure regardless of
-    // whether clingox's own slots are shared or separate -- a later
+    // whether clingox's own slots are shared or separate; a later
     // propagator's `init` never runs either way, so the *effect* a real solve
     // can see is identical under both implementations. Only a unit test that
     // calls the trampolines directly on two distinct `PropagatorContext`s,

@@ -396,10 +396,11 @@ impl ScopedControl<'_> {
     /// the control; that would let a borrowed handler's own borrow end while
     /// the search could still call into it, which
     /// [`Control::solve_with_events`] cannot happen to, since it always closes
-    /// the search, and drops its handler, before it returns. `Send` is needed
-    /// regardless, since a yielding search still runs on clasp's own thread
-    /// wherever clasp has threads, and parallel solving can report a model from
-    /// any solver thread (DESIGN S10).
+    /// the search, and drops its handler, before it returns. A yielding
+    /// search with one solver thread runs on the caller's thread, inside the
+    /// handle's `next_model`, `get` and `close`. `Send` is needed regardless,
+    /// since parallel solving can report a model from any solver thread
+    /// (DESIGN S10).
     ///
     /// The handler is dropped as soon as the search closes: when the returned
     /// handle is closed or dropped, or, for a forgotten handle, when the next
@@ -814,6 +815,9 @@ impl ScopedControl<'_> {
         timeout: Option<Duration>,
         f: impl FnOnce(&mut ScopedControl<'_>) -> Result<T>,
     ) -> Result<T> {
+        // How often the timeout thread retries an interrupt that found no
+        // search running yet.
+        const DEADLINE_RETRY: Duration = Duration::from_millis(1);
         let Some(budget) = timeout else {
             return f(self);
         };
@@ -826,7 +830,18 @@ impl ScopedControl<'_> {
                     // A disconnected channel means `f` has returned (or
                     // unwound), and the search with it.
                     if finished.recv_timeout(budget) == Err(RecvTimeoutError::Timeout) {
-                        interrupt.interrupt();
+                        // An interrupt only reaches a search that is starting
+                        // or running (S13), and the deadline can pass before
+                        // `f` has started its search: keep trying until one is
+                        // accepted or `f` returns. Once `f` returns no search
+                        // of this call is left, so none of a later call is hit.
+                        while !interrupt.interrupt() {
+                            if finished.recv_timeout(DEADLINE_RETRY)
+                                != Err(RecvTimeoutError::Timeout)
+                            {
+                                break;
+                            }
+                        }
                     }
                 })
                 .map_err(|e| {

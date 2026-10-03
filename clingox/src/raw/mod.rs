@@ -68,6 +68,7 @@ pub(crate) use ast::{
 pub(crate) use atoms::{AtomData, AtomIterator, Atoms};
 pub(crate) use backend::{WeightedLiteral, weighted_literal};
 pub(crate) use capture::{MESSAGE_LIMIT, UserLogger};
+pub(crate) use config::ConfigKey;
 pub(crate) use control::{ControlHandle, GroundError, SolveOutcome};
 pub(crate) use interrupt::SolveSync;
 pub(crate) use model::{
@@ -80,13 +81,14 @@ pub(crate) use script::{register as register_script, version as script_version};
 #[cfg(test)]
 pub(crate) use solve::panic_while_closing;
 pub(crate) use solve::settle;
-pub(crate) use stats::{MutableStats, Stats};
+pub(crate) use stats::{MutableStats, Shape, Stats, StatsKey};
 pub(crate) use symbol::{
     RawSignature, SymbolType, create_function, create_infimum, create_number, create_signature,
     create_string, create_supremum, parse_term, signature_arity, signature_hash,
     signature_is_equal_to, signature_is_less_than, signature_is_positive, signature_name,
     symbol_arguments, symbol_hash, symbol_is_equal_to, symbol_is_less_than, symbol_is_positive,
-    symbol_name, symbol_number, symbol_string, symbol_to_string, symbol_type,
+    symbol_name, symbol_number, symbol_string, symbol_to_string, symbol_to_string_lossy,
+    symbol_type,
 };
 pub(crate) use theory::{TermType, Theory};
 
@@ -423,6 +425,19 @@ pub(crate) fn fill_string(
     size: impl FnOnce(&mut usize) -> Result<(), Error>,
     fill: impl FnOnce(*mut c_char, usize) -> Result<(), Error>,
 ) -> Result<String, Error> {
+    String::from_utf8(fill_bytes(size, fill)?).map_err(|e| {
+        Error::new(
+            ErrorKind::Utf8,
+            format!("clingo returned a string that is {}", e.utf8_error()),
+        )
+    })
+}
+
+/// As [`fill_string`], without the UTF-8 check: the bytes before the NUL.
+pub(crate) fn fill_bytes(
+    size: impl FnOnce(&mut usize) -> Result<(), Error>,
+    fill: impl FnOnce(*mut c_char, usize) -> Result<(), Error>,
+) -> Result<Vec<u8>, Error> {
     let mut len = 0;
     size(&mut len)?;
     let mut bytes = vec![0u8; len];
@@ -436,12 +451,7 @@ pub(crate) fn fill_string(
         ));
     };
     bytes.truncate(nul);
-    String::from_utf8(bytes).map_err(|e| {
-        Error::new(
-            ErrorKind::Utf8,
-            format!("clingo returned a string that is {}", e.utf8_error()),
-        )
-    })
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -709,13 +719,13 @@ mod tests {
     fn raw_slice_is_null_safe() {
         // SAFETY: null with any length is allowed.
         let empty: &[u64] = unsafe { raw_slice(std::ptr::null(), 3) };
-        assert!(empty.is_empty());
+        assert_eq!(empty, []);
         let data = [1_u64, 2, 3];
         // SAFETY: `data` has three elements and outlives the slice.
         assert_eq!(unsafe { raw_slice(data.as_ptr(), 3) }, &data);
         // SAFETY: a zero length never reads through the pointer.
         let none: &[u64] = unsafe { raw_slice(data.as_ptr(), 0) };
-        assert!(none.is_empty());
+        assert_eq!(none, []);
     }
 
     #[test]

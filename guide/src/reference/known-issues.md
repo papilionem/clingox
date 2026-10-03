@@ -27,16 +27,6 @@ patches, so with one of them these remain:
   exits, while other threads may still use symbols. The vendored build never frees
   it. With a system clingo, join every thread that uses clingox before `main`
   returns.
-- **Very deep syntax trees overflow the stack.** clingo releases, prints, copies,
-  compares and hashes an abstract syntax tree recursively, one call frame per
-  level. On a 2 MiB stack, merely dropping an `Ast` aborts the process at roughly
-  9 000 levels of `f(f(...))` and 20 000 of `-(-(...))`. Parsing itself does not
-  recurse: a million-level term parses. Ordinary programs are nowhere near these
-  depths; for generated or untrusted input that nests deeply, parse and handle
-  the nodes on a thread with a large stack (`std::thread::Builder::stack_size`).
-  On Windows (MSVC) the frames are larger: building and dropping a chain of 100 000
-  nested functions needs more than 128 MiB of stack on x86_64 and more than 32 MiB
-  on i686.
 - **Statistics on several threads.** clasp registers each kind of statistic the
   first time it is used, without a lock, so controls that first solve on several
   threads at once race inside clasp, which can in rare cases read freed memory.
@@ -78,6 +68,12 @@ patches, so with one of them these remain:
   `--parallel-mode=N,split`, a search that is interrupted leaks the guiding paths
   still queued, 32 bytes each. The vendored build frees them. With a system clingo
   it is a few bytes per interrupted search, not a growing leak.
+- **Reified output from a backend writer mixes up its two options.** With
+  `BackendWriterKind::REIFY`, an unpatched clingo ignores `reify_steps` on its own
+  and adds step numbers for `reify_sccs` too. The vendored build passes each option
+  where it belongs, so the output matches the `clingo` command line's
+  `--reify-steps` and `--reify-sccs`. With a system clingo, set both options or
+  neither.
 
 ## Platforms
 
@@ -118,6 +114,27 @@ patches, so with one of them these remain:
 
 ## Behaviour to know about
 
+- **Very deep syntax trees overflow the stack.** clingo releases, prints, copies,
+  compares and hashes an abstract syntax tree recursively, one call frame per
+  level. On a 2 MiB stack, merely dropping an `Ast` aborts the process at roughly
+  9 000 levels of `f(f(...))` and 20 000 of `-(-(...))`. `ast::parse_string`
+  itself does not recurse: a million-level term parses. Program text added to a
+  control does: in a release build, `Control::add_base` of a fact `p(f(f(...)))`
+  aborted the process at 22 500 levels on a 2 MiB stack and at 90 000 on an 8 MiB
+  stack, because clingo checks whether the fact is ground recursively, and grounding
+  such a fact aborted at 20 000 and 70 000 levels, when clingo prints it for the
+  output. Ordinary programs are nowhere near these depths; for generated or
+  untrusted input that nests deeply, parse, add, ground and handle the nodes on a
+  thread with a large stack (`std::thread::Builder::stack_size`), or in a separate
+  process.
+  On Windows (MSVC) the frames are larger: building and dropping a chain of 100 000
+  nested functions needs more than 128 MiB of stack on x86_64 and more than 32 MiB
+  on i686.
+- **A backend writer does not report a failed write.** If the file given to
+  `Control::register_backend_writer` cannot take the output, for example on a
+  full disk, grounding and solving succeed and the file is short or empty.
+  Check the file afterwards when it matters.
+
 - **A huge `#project` arity allocates until memory runs out.** `#project p/4294967295.`
   makes clingo build one variable per argument, in text and through a
   `project_signature` node alike. clingox refuses a negative arity in the node
@@ -133,7 +150,10 @@ patches, so with one of them these remain:
   for a tester option that was never set: clingo gives it its default.
 - **Options that need threads.** `solve.parallel_mode` and three related options do
   not exist in builds without threads, such as the default WebAssembly build.
-- **No CPU time in WebAssembly.** `summary.times.cpu` is always 0 there.
+- **No CPU time in WebAssembly.** `summary.times.cpu` is always 0 there: Emscripten
+  has no real `getrusage`. The vendored build does not call it there; an unpatched
+  clingo does, and a debug build then prints
+  `warning: unsupported syscall: __syscall_getrusage` each time.
 - **`is_consequence` only agrees with `is_true` for a shown or projected literal.**
   Outside brave and cautious enumeration, `Model::is_consequence` normally agrees
   with `Model::is_true` on the same literal, but clingo forces `false` for one that
@@ -161,9 +181,10 @@ patches, so with one of them these remain:
   return from `on_unsat`, `on_statistics` or `on_finish` as fatal: it calls
   `std::_Exit(1)` immediately, with no unwinding and no error reported, ending the
   process as if it had crashed. `on_model`'s `false` has a second, documented-as-safe
-  path instead (clingo's ordinary error state) -- but taking it still corrupts
-  clasp's own internal state for an async, multi-threaded search (also clingox's
-  own blocking `solve_with_events`, which runs in async mode): the next call that
+  path instead (clingo's ordinary error state), but taking it still corrupts
+  clasp's own internal state for an async, multi-threaded search (clingox's own
+  blocking `solve_with_events` is one whenever it runs in async mode, with a
+  timeout or a live `InterruptHandle`): the next call that
   updates the control reads out of bounds. clingox's own trampoline for
   `Control::solve_with_events`/`solve_yield_with_events`/`solve_async_with_events`
   handles all of this for you: an `Err` or a panic from any of the four

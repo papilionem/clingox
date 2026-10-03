@@ -280,7 +280,7 @@ stays usable after one of these fails, so a further `solve` on the same
 `Control` completes normally, whatever the error's kind. A panic from any
 of the five methods is always caught before it can unwind into clingo's own
 C++ frames, and resumed on the thread that made the call that led there,
-once that call returns — never on a solver thread.
+once that call returns, never on a solver thread.
 
 ## Reading the assignment and the trail
 
@@ -410,7 +410,7 @@ should keep holding across every later step on the same control.
 `PropagateInit::add_watch` sets up watches before the search starts, on
 every solver thread by default. Once solving is under way,
 `PropagateControl::add_watch`/`has_watch`/`remove_watch` do the same thing
-for the *current* solver thread only — watching a literal from one thread's
+for the *current* solver thread only: watching a literal from one thread's
 own `propagate` call never affects another thread's watches for that same
 literal, and removing one never touches `PropagateInit`'s own, every-thread
 registration. `PropagateControl::add_literal` adds a fresh, volatile solver
@@ -472,7 +472,7 @@ no lock, which can race a write from that same thread's ordinary
 decision-making (`docs/dev/UPSTREAM-ISSUES.md`'s U28). The bit actually read
 never changes once the search starts, so this has never produced a wrong
 answer in practice, and `cargo xtask sanitize` suppresses exactly this one,
-narrowly — but it is a genuine data race in C++'s own formal sense. If you
+narrowly, but it is a genuine data race in C++'s own formal sense. If you
 need to be certain no such race exists in your own build's clasp,
 `Control::register_propagator_sequential` avoids it entirely, at the cost of
 serialising every call into the propagator.
@@ -488,7 +488,7 @@ to one total assignment), and `CheckMode::Both` fires at every point either
 of the other two would. The default is `CheckMode::Total`. `check` runs
 even for a propagator that added no watches at all, which makes it the
 place to enforce a constraint that genuinely needs to see the *whole*
-assignment rather than reacting to individual literals becoming true — as
+assignment rather than reacting to individual literals becoming true, as
 the assignment-reading example above already does.
 
 ## Reentrancy, concretely: a forced backjump
@@ -504,7 +504,7 @@ clasp 5.8.2 (`clasp/src/clingo.cpp`'s own `ClingoPropagator::Control`
 constructor always sets a flag, `state_ctrl`, that makes `add_clause`'s and
 `propagate`'s own conflict-handling code defer the actual backjump instead
 of resolving it inline): **`undo` never runs while the call that triggered
-it is still on the same thread's own stack in this clasp version** — the
+it is still on the same thread's own stack in this clasp version**: the
 backjump is always resolved afterward, from clasp's own outer search loop.
 `clingox`'s own soundness never depended on which way this went, though:
 `Propagator`'s methods take `&self`, are `Send + Sync`, and no lock of
@@ -576,7 +576,7 @@ impl Propagator for ForcesABackjump {
                 let forced = if control.assignment().is_true(b)? { -b } else { b };
                 // A unit, volatile clause conflicting with `b`'s own,
                 // lower-level decision forces a backjump that undoes `d`
-                // and `e`'s own decisions -- but not synchronously here:
+                // and `e`'s own decisions, but not synchronously here:
                 // clingo 5.8.2 always resolves it after this call returns.
                 let _ = control.add_clause(&[forced], ClauseType::Volatile)?;
             }
@@ -640,10 +640,10 @@ makes `ClingoPropagator::addClause` defer instead of resolving inline) is in
 DESIGN.md's own S11, checked against the vendored `clasp/src/clingo.cpp`.
 `clingox/tests/propagator_reentrancy.rs`'s own
 `undo_never_runs_inside_propagate_after_add_clause_at_{one,two,eight}_threads`
-pin exactly this under the thread sanitizer — DESIGN S11's own gate: "the
+pin exactly this under the thread sanitizer (DESIGN S11's own gate: "the
 design is final only after those pass under TSan," which for the current
 clasp version means confirming `undo` is *not* reentrant here, not the
-reverse. Keep holding to "never hold a lock of your own across a call into
+reverse). Keep holding to "never hold a lock of your own across a call into
 `PropagateControl`" anyway: it costs nothing today, and is exactly what
 keeps this sound if a future clasp version ever does call `undo` back
 synchronously.

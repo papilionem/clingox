@@ -136,7 +136,7 @@ fn solve_optimal_with_applies_assumptions() {
         panic!("the problem is satisfiable without c");
     };
     assert_eq!(best.cost(), [3]);
-    assert!(best.symbols().is_empty());
+    assert_eq!(best.symbols(), []);
     assert!(best.optimality_proven());
     assert!(result.is_exhausted());
 }
@@ -237,7 +237,7 @@ fn solve_all_with_a_timeout_returns_the_models_found_so_far() {
     let (result, models) = ctl.solve_all_with(options).unwrap();
     assert!(started.elapsed() < LATE, "{:?}", started.elapsed());
     assert!(result.is_sat() && result.is_interrupted(), "{result:?}");
-    assert!(!models.is_empty());
+    assert_ne!(models, []);
     assert!(models.iter().all(|m| !m.optimality_proven()));
     assert_eq!(model_limit(&mut ctl), "3");
 }
@@ -327,5 +327,5 @@ fn every_timed_variant_returns_within_its_bound() {
     let all = returns_in_time(HARD_OPTIMUM, move |c| c.solve_all_with(budget()));
     let (result, models) = all.expect("an interrupted search is not an error");
     assert!(result.is_interrupted(), "{result:?}");
-    assert!(!models.is_empty());
+    assert_ne!(models, []);
 }

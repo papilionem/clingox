@@ -27,10 +27,21 @@ difference between clingo 5.6.2 and 5.8.2.
   180 ns, a propagator's `propagate` 136 ns and an observer callback about 30 ns
   to what your own code does. Keep the callback itself cheap and the layer does
   not show.
-- **Configuration and statistics go through paths.** Each read resolves a path
-  such as `solve.models` from the root, so a single statistics read costs 0.45 us
-  and walking a whole tree is two to three times slower than with clingo's own
-  keys. Read the entries you need, or take a `StatsTree` snapshot once.
+- **Walks and repeated reads go through entries.** A path method resolves its
+  path from the root on every call, so a single statistics read costs about
+  0.5 us. An entry (`Configuration::root` or `entry`, `Statistics::root` or
+  `entry`) holds clingo's key for one place in the tree, so a read is one call
+  into clingo and a step of a walk with `children` is one to three calls. In one session,
+  walking the default configuration (84 nodes, every value read) took 26 us
+  through entries and 75 us by path, and reading one statistics entry 100 times
+  took 4.6 us through an entry and 50 us by path. Use a path for a single read
+  and an entry for a walk or a read that repeats.
+- **Walking statistics through entries is not faster than a snapshot.** Every
+  child of a map is checked against the map before it is read, so that no
+  walk can raise a clingo error that would poison the control; the walk of a
+  tree of 187 entries took 59 us, as long as `Statistics::snapshot` (58 us),
+  which makes the same check. Take the snapshot when you want every number, and
+  entries when you want some of them or read them again.
 
 Every check clingox makes stays in the fast paths: a literal is validated, a
 string is checked for NUL bytes and UTF-8, and an error is read from a fresh

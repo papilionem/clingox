@@ -83,7 +83,7 @@ pub const VENDORED: bool = build_config::VENDORED;
 
 /// The entries of clingox's `docs/dev/UPSTREAM-ISSUES.md` whose fixes are
 /// patched into this build, in the order the patches were applied, which is
-/// file-name order: `["U1", "U19", "U2", "U35", "U46", "U47", "U49", "U50"]` for the
-/// vendored build, none for a system library.
+/// file-name order: `["U1", "U14", "U19", "U2", "U35", "U46", "U47", "U49",
+/// "U50", "U53"]` for the vendored build, none for a system library.
 #[cfg(clingox_sys_build)]
 pub const PATCHES: &[&str] = build_config::PATCHES;

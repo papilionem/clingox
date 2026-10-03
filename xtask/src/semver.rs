@@ -367,7 +367,7 @@ mod tests {
                 ("struct_missing".to_owned(), "clingox::Control".to_owned()),
             ]
         );
-        assert!(findings("Summary no semver update required\n").is_empty());
+        assert_eq!(findings("Summary no semver update required\n"), []);
     }
 
     #[test]
@@ -400,7 +400,7 @@ mod tests {
             applicable("v1.0.0", None, entries).is_err(),
             "entries need a baseline"
         );
-        assert!(applicable("v1.0.0", None, Vec::new()).unwrap().is_empty());
+        assert_eq!(applicable("v1.0.0", None, Vec::new()).unwrap(), []);
     }
 
     #[test]

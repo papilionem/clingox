@@ -340,10 +340,9 @@ fn assert_tables(tables: &Tables, constants: &[Constant]) -> Result<()> {
                 .into());
             }
         }
-        for name in [&constructor.name] {
-            if name.is_empty() || name.starts_with('_') {
-                return Err(format!("constructor {index} has the unusable name {name:?}").into());
-            }
+        let name = &constructor.name;
+        if name.is_empty() || name.starts_with('_') {
+            return Err(format!("constructor {index} has the unusable name {name:?}").into());
         }
     }
 

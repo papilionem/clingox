@@ -119,6 +119,7 @@ mod model;
 pub mod observer;
 pub mod propagate;
 pub mod script;
+mod segment;
 mod signature;
 mod solve;
 mod solve_events;
@@ -126,6 +127,7 @@ mod stats;
 mod symbol;
 pub mod testing;
 mod theory;
+mod walk;
 
 #[cfg(doctest)]
 mod doctests;
@@ -137,7 +139,7 @@ pub mod __private;
 pub use async_solve::AsyncSolveHandle;
 pub use atoms::{ProgramLiteral, SymbolicAtom, SymbolicAtomIter, SymbolicAtoms};
 pub use builder::ControlBuilder;
-pub use config::{ConfigKind, Configuration};
+pub use config::{ConfigChildren, ConfigEntry, ConfigKind, Configuration};
 pub use control::{Assumption, Control, Part, ScopedControl, SolveResult};
 pub use convert::{FromSymbol, Predicate, ToSymbol};
 pub use error::{Error, ErrorKind, Location, Message, MessageCode, Result};
@@ -148,10 +150,11 @@ pub use model::{
     Consequence, ExtendableModel, Model, ModelKind, OwnedModel, ShowType, SolveControl,
 };
 pub use script::Script;
+pub use segment::PathSegment;
 pub use signature::Signature;
 pub use solve::{Outcome, SolveHandle};
 pub use solve_events::SolveEventHandler;
-pub use stats::{MutableStatistics, StatKind, Statistics, StatsTree};
+pub use stats::{MutableStatistics, StatKind, Statistics, StatsChildren, StatsEntry, StatsTree};
 pub use symbol::{Sign, Symbol, SymbolKind};
 pub use theory::{
     Id, TheoryAtom, TheoryAtomIter, TheoryAtoms, TheoryElement, TheoryTerm, TheoryTermKind,
@@ -289,6 +292,7 @@ pub mod prelude {
     pub use crate::interrupt::SolveOptions;
     pub use crate::model::{ExtendableModel, Model, ModelKind, OwnedModel, ShowType, SolveControl};
     pub use crate::script::Script;
+    pub use crate::segment::PathSegment;
     pub use crate::signature::Signature;
     pub use crate::solve::{Outcome, SolveHandle};
     pub use crate::solve_events::SolveEventHandler;

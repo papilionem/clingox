@@ -961,7 +961,7 @@ mod tests {
             assert_eq!(err.kind(), ErrorKind::Nul, "before the freeze check");
             assert_eq!(drops.load(Ordering::SeqCst), 1);
         }
-        assert!(lock(&registry).names.is_empty());
+        assert_eq!(lock(&registry).names, Vec::<String>::new());
     }
 
     #[test]

@@ -198,6 +198,8 @@ now is faster than the other column.
 | **Configuration and statistics** | | | | | | | |
 | walk the configuration (84 nodes) | 118.0 us | 74.0 us | 0.63 | 22.5 us | 970.9 us | 3.28 | 0.08 |
 | copy the statistics (164 values) | 114.4 us | 58.2 us | 0.51 | 29.6 us | n/a | 1.96 | n/a |
+| walk the configuration by entry (84 nodes) | n/a | 26.9 us | n/a | 22.5 us | n/a | 1.20 | n/a |
+| walk the statistics by entry (164 values) | n/a | 60 us | n/a | 29.6 us | n/a | 2.0 | n/a |
 | **Application** | | | | | | | |
 | `Control` add, ground, solve | 164.7 us | 157.6 us | 0.96 | 103.4 us | 163.9 us | 1.52 | 0.96 |
 | `Application::run` doing the same | 186.0 us | 186.6 us | 1.00 | n/a | 189.1 us | n/a | 0.99 |
@@ -266,6 +268,8 @@ A ratio above 1 means clingox is slower than `clingo.hh`.
 | walk the configuration (84 nodes) | 73.4 us | 17.1 us | 4.30 |
 | copy the statistics (164 values) | 59.7 us | 28.2 us | 2.12 |
 | 100 reads of one statistics path | 47.3 us | 11.8 us | 4.01 |
+| walk the configuration by entry (84 nodes) | 26.9 us | 17.1 us | 1.57 |
+| 100 reads of one statistics entry | 3.1 to 4.7 us | n/a | n/a |
 | **Application** | | | |
 | `Control` add, ground, solve | 163.2 us | 103.3 us | 1.58 |
 | `Application::run` doing the same | 191.8 us | 122.9 us | 1.56 |
@@ -344,10 +348,13 @@ single symbol that way in 36 ns, where it took 185 ns before the optimisations.
   Creating a control and running a trivial program takes 158 us in clingox and
   164 us in pyclingo, both on 5.8.2, and 103 us in the crate on 5.6.2. `clingo.hh`
   on 5.8.2 also takes 103 us, so the version is not the cause. clingox, built
-  with threads, starts each solve asynchronously and waits for it, which starts
-  a thread; the same C++ program with an asynchronous solve takes 159 us instead
-  of 108 us (median of 2 000 runs, pinned to one core). pyclingo solves without a
-  thread, so its extra time is its own. `Application::run` adds 29 us on top of
+  with threads, started each solve asynchronously and waited for it, which
+  starts a thread; the same C++ program with an asynchronous solve takes 159 us
+  instead of 108 us (median of 2 000 runs, pinned to one core). pyclingo solves
+  without a thread, so its extra time is its own. These figures were measured
+  before proposal 6 was done: since then a blocking solve that nothing can interrupt (no
+  `InterruptHandle`, no timeout) runs without the thread (proposal 6, done).
+  `Application::run` adds 29 us on top of
   that in clingox and 25 us in pyclingo, which is `clingo_main`'s own setup;
   `clingo_main` from C++ adds 20 us.
 - **Against clingo's C++ API**, the table in
@@ -432,11 +439,17 @@ decision or reaches into every entry point.
    It needs every path that can set the state audited (clingo's own C++ code,
    the trampolines, the script and application entry points) and DESIGN S1
    restated, which is why it was not done here.
-2. **A cursor for configuration and statistics.** clingo's API works with numeric
-   keys; clingox works with paths and resolves each from the root. An
-   `entries()` cursor over the tree would make a walk as cheap as the crate's
-   (23 us instead of 74 us for the configuration) and leave the path methods as
-   they are.
+2. **A cursor for configuration and statistics (done).** clingo's API works
+   with numeric keys; clingox's path methods resolve each path from the root.
+   `Configuration::root`/`entry` and `Statistics::root`/`entry` now hand out
+   entries that hold the key, with a `children()` iterator, and the path methods
+   are unchanged. Measured on 2026-10-03 (two sessions, pinned to one core): the
+   configuration walk takes 26.9 us by entry against 76.8 us by path in the same
+   session (ratio 0.35; the crate's walk is 22.5 us), and 100 reads of one
+   resolved statistics entry take 3.1 to 4.7 us against 47 to 53 us by path. The
+   statistics walk by entry is about 60 us, no faster than the snapshot, because
+   every map child keeps its `map_has_subkey` check, so that no clingo logic
+   error can reach a caller; a faster snapshot is future work.
 3. **`add_facts` through the backend.** `add_facts` prints every symbol, parses
    the text and grounds it, which is 7.7 ms of overhead over adding the same text
    for 10 000 facts. Adding atoms through the backend would skip the print and
@@ -448,34 +461,39 @@ decision or reaches into every entry point.
    tuples and `#inf`, so it needs an exhaustive test against clingo.
 5. **Build settings.** clingox is a library, so LTO and `codegen-units` are the
    application's choice. They were not measured here.
-6. **The thread start of every solve.** With threads, `Control::solve` starts
-   the search in async mode and waits for it, and clasp starts a new thread for
-   each async search (`clasp_facade.cpp:378`). The search runs no slower (65 536
-   models: 17.2 ms blocking and async), but each call costs about 50 us more: a
-   trivial add, ground and solve took 159 us async and 108 us blocking in C++,
-   pinned to one core or not. For one large solve that is nothing; for a
-   multi-shot program with thousands of tiny solves it can dominate. Two ways
-   out, neither tried:
-   - **Solve blocking (mode 0) while no interrupt can reach the control.** If no
-     `InterruptHandle` has been handed out for this control and the call has no
-     timeout, nothing on another thread can interrupt it, so the async start
-     buys nothing. The search would then run inside `clingo_control_solve` in
-     the phase `Inside`, as on a build without threads, where an interrupt from
-     the control's own thread (the logger, a propagator, a model printer)
-     returns `false` instead of stopping the search, because it
-     cannot tell whether clasp's strategy has attached and an early one would
-     be queued in `qSig` and end the next solve call at its start
-     (`raw::interrupt`). What needs checking: that handing out a handle
-     during a blocking solve (from a callback) is refused or waits; that the
-     `Application` path, where clingo owns the control and the printer
-     interrupts through its `SolveSync`, keeps working; that a later
-     `interrupt_handle()` switches the control back to async for its next
-     solve; whether clasp's warnings differ between the two modes; and the TSan and racing-solve tests of S13 in both modes.
-   - **Reuse the thread.** clasp creates a fresh `mt::thread` per async search
-     and offers no option to keep one, through the C API or otherwise, so this
-     would need a patch to clasp (a persistent worker per facade) and would
-     have to keep `doStart`'s wait for the strategy to attach, on which the
-     `Running` phase relies.
+6. **The thread start of every solve. Done.**
+   With threads, `Control::solve` used to start the search in async mode and
+   wait for it, and clasp starts a new thread for each async search
+   (`clasp_facade.cpp:378`). The search runs no slower (65 536 models: 17.2 ms
+   blocking and async), but each call cost about 50 us more: a trivial add,
+   ground and solve took 159 us async and 108 us blocking in C++, pinned to one
+   core or not. For one large solve that is nothing; for a multi-shot program
+   with thousands of tiny solves it can dominate. Two ways out were considered:
+   - **Solve blocking (mode 0) while no interrupt can reach the control. Done.**
+     `Control::solve`, `solve_with` without a timeout and `solve_with_events`
+     now run the search inside `clingo_control_solve`, in the phase `Inside`,
+     when `Arc::get_mut` on the control's shared interrupt state succeeds: no
+     `InterruptHandle`, no timeout thread, no application printer slot and no
+     open search holds it. In that phase an interrupt from the control's own
+     thread (the logger, a propagator, a model printer) returns `false` instead
+     of stopping the search, because it cannot tell whether clasp's strategy
+     has attached and an early one would be queued in `qSig` and end the next
+     solve call at its start (`raw::interrupt`), but no interrupt can be sent:
+     a new holder of the state needs `&self` and the solve holds `&mut self`.
+     The checks listed here were made: handing out a handle during a blocking
+     solve is impossible (no callback receives the control); a later
+     `interrupt_handle()` switches the next solve back to async; clasp's
+     warnings are the same in both modes; `blocking_solve_mode` alternates
+     mode-0 solves with interrupted ones on one control, also under TSan (the
+     older racing-solve tests always hold a handle, so they run async). The `Application` path keeps async, because the printer
+     slot holds the state, and gains nothing; publishing the slot only when a
+     printer is installed is a separate change, not made yet.
+   - **Reuse the thread. Not done.** clasp creates a fresh `mt::thread` per
+     async search and offers no option to keep one, through the C API or
+     otherwise, so this would need a patch to clasp (a persistent worker per
+     facade) and would have to keep `doStart`'s wait for the strategy to
+     attach, on which the `Running` phase relies. It would only help the
+     searches that still run async.
 
 ## Windows: clingo with and without `/GL`
 

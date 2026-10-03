@@ -431,7 +431,7 @@ mod tests {
         let context = GroundContext::new(&mut function);
         let mut out = Vec::new();
         assert!(evaluate(&context, c"none", &[], &mut out));
-        assert!(out.is_empty());
+        assert_eq!(out, []);
     }
 
     /// The buffer that collects a call's values is kept for the next call, so
@@ -481,7 +481,7 @@ mod tests {
             !evaluate(&context, c"f", &[], &mut out),
             "the slot stays set"
         );
-        assert!(out.is_empty());
+        assert_eq!(out, []);
         let err = context.error.take().unwrap();
         assert_eq!(err.kind(), ErrorKind::Conversion);
         drop(context);

@@ -6,8 +6,8 @@
 //! unknown key and reading a map as a value as *logic* errors, which would
 //! poison; clingox checks the path first and reports a runtime error instead.
 //!
-//! On WASM, Emscripten's `getrusage` returns a constant, so CPU times are 0
-//! there. No test expects a positive CPU time.
+//! On WASM, CPU times are 0: Emscripten has no real `getrusage`, and the
+//! vendored build does not call it (U14). No test expects a positive CPU time.
 
 #![forbid(unsafe_code)]
 #![allow(
@@ -72,6 +72,17 @@ fn times_are_durations_after_a_solve() {
     );
     let cpu = value(&ctl, "summary.times.cpu");
     assert!(cpu.is_finite() && cpu >= 0.0, "{cpu}");
+}
+
+/// The documented WebAssembly value (U14): exactly 0, with the patch (clasp
+/// does not read the clock there) and without it (Emscripten's stub returns the
+/// same time on every call, and the value is a difference of two readings).
+/// This pins the behaviour; `cargo xtask test wasm` is what checks the patch.
+#[cfg(target_os = "emscripten")]
+#[test]
+fn cpu_time_is_zero_on_webassembly() {
+    let ctl = solved_four_models();
+    assert_eq!(value(&ctl, "summary.times.cpu"), 0.0);
 }
 
 #[test]

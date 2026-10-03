@@ -15,7 +15,7 @@
 #   release tag    release.yml calls this workflow on the tagged commit. The
 #                  event is then the tag push (`push`, ref refs/tags/v...), and
 #                  the nightly-only jobs run too: a release runs every job (the
-#                  experimental ones still only report, as everywhere).
+#                  experimental Android ARM64 job still only reports).
 #
 # Branch protection should require the single `conclusion` job, which is green
 # only when every job that ran succeeded (jobs skipped by the trigger policy
@@ -340,18 +340,10 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
-    # An experimental host is one nobody has run the suite on yet. It reports
-    # its failures, but does not block `conclusion`. Remove the flag once the
-    # job has been green (see guide/src/reference/platforms.md, "Experimental jobs").
-    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: macos-15-intel
-            experimental: false
-          - os: windows-11-arm
-            experimental: true
+        os: [macos-15-intel, windows-11-arm]
     env:
       CLINGOX_SYS_CCACHE: ${{ startsWith(matrix.os, 'windows') && '0' || 'auto' }}
     steps:
@@ -393,7 +385,6 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: macos-15
     timeout-minutes: 90
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
       CARGO_TARGET_AARCH64_APPLE_IOS_SIM_RUNNER: ${{ github.workspace }}/.github/scripts/ios-sim-runner.sh
@@ -536,9 +527,10 @@ jobs:
           if-no-files-found: error
 
   # Runs those executables on an arm64-v8a emulator when the arm64 runner
-  # offers KVM. Whether it does is unverified, so the job probes /dev/kvm and,
-  # without it, fails: a green job must mean its tests ran. The job is
-  # experimental, so the run stays green while the job shows red. Android 11+ on arm64 is where U18 says clingo 5.8 is
+  # offers KVM. It has not so far: every run since the probe was added logs
+  # that /dev/kvm is absent (the green runs before it ran no test). So the job
+  # probes /dev/kvm and, without it, fails: a green job must mean its tests ran. It is the one experimental job (`continue-on-error`): the run
+  # stays green while the job shows red. Android 11+ on arm64 is where U18 says clingo 5.8 is
   # broken, so a red result here can be the real finding: api-level 30 is the
   # oldest image that shows it.
   android-arm64:
@@ -547,7 +539,7 @@ jobs:
     needs: android-arm64-build
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
+    continue-on-error: true
     steps:
       # Only the helper script is needed from the repository.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -585,13 +577,13 @@ jobs:
           script: bash .github/scripts/android-run-tests.sh android-arm64-tests arm64-v8a
 
   # Native 32-bit x86. cc and cmake receive -m32 from the target triple (the
-  # `cmake` crate forwards the `cc` crate's flags); unverified, see guide/src/reference/platforms.md.
+  # `cmake` crate forwards the `cc` crate's flags): the test executables link
+  # the static clingo build, which the linker refuses for x86_64 objects.
   linux-i686:
     name: test (i686-unknown-linux-gnu)
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
     steps:
@@ -619,7 +611,6 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: windows-2025
     timeout-minutes: 150
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: "0"
     steps:
@@ -649,7 +640,6 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 240
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
       QEMU_LD_PREFIX: /usr/arm-linux-gnueabihf
@@ -687,7 +677,6 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     env:
       CLINGOX_SYS_CCACHE: auto
     steps:
@@ -895,7 +884,6 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -928,7 +916,6 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
-    continue-on-error: true # experimental, see guide/src/reference/platforms.md
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

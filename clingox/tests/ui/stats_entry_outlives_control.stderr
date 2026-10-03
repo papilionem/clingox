@@ -1,0 +1,11 @@
+error[E0597]: `ctl` does not live long enough
+  --> tests/ui/stats_entry_outlives_control.rs:10:16
+   |
+ 9 |         let ctl = Control::new().unwrap();
+   |             --- binding `ctl` declared here
+10 |         root = ctl.statistics().unwrap().root();
+   |                ^^^ borrowed value does not live long enough
+11 |     }
+   |     - `ctl` dropped here while still borrowed
+12 |     let _kind = root.kind();
+   |                 ---- borrow later used here

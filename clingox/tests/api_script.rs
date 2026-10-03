@@ -563,7 +563,7 @@ fn step_7_ground_callback_wins(langs: &Langs) {
     ctl.add_base(program).unwrap();
     langs.calc.take();
     ctl.ground_with(&[Part::base()], |_| Ok(())).unwrap();
-    assert!(langs.calc.take().is_empty());
+    assert_eq!(langs.calc.take(), []);
     assert_eq!(models(&mut ctl), [Vec::<String>::new()]);
 
     // A plain `ground` does ask it.
@@ -616,7 +616,7 @@ fn step_9_threads(langs: &Langs) {
     ground(&mut ctl).unwrap();
     assert_eq!(models(&mut ctl).len(), 16);
     let seen = thr.take_threads();
-    assert!(!seen.is_empty());
+    assert_ne!(seen, []);
     assert!(
         seen.iter().all(|t| *t == thread::current().id()),
         "callbacks run on the grounding thread only"

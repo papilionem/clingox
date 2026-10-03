@@ -3,19 +3,19 @@
 clingox builds clingo from its C++ source for each target, so the question for every
 platform is whether that build and the test suite have been run there. The table
 records what the continuous integration workflow (`.github/workflows/ci.yml`) runs
-on each target, as of
-[run 36616256903](https://github.com/papilionem/clingox/actions/runs/36616256903).
+on each target. The jobs that were experimental at the first release became
+ordinary jobs after passing in every run that finished from 2026-09-30 to
+2026-10-02, for example
+[run 36991276242](https://github.com/papilionem/clingox/actions/runs/36991276242).
 
 ## Status words
 
 - **Tested**: the test suite runs in CI and a failure fails the run.
-- **Tested, experimental**: the test suite runs in CI and has passed, but the job is
-  marked `continue-on-error`, so a failure is reported without failing the run.
 - **Built only**: CI compiles the library and its test executables for the target,
   but no test runs there.
 - **Not tested**: no test runs there in CI.
-- **nightly**, after a status: the job runs every night and when started by hand,
-  not on every push.
+- **nightly**, after a status: the job runs every night, for a release, and when
+  started by hand, not on every push.
 
 "The test suite" means `cargo test` on the target: the unit tests, the integration
 tests and the doctests of `clingox-sys` and `clingox`. Where a row says so, the
@@ -28,17 +28,17 @@ compiler output, run only on Linux x86_64 with a pinned Rust release.
 |---|---|---|---|
 | Linux x86_64 | `x86_64-unknown-linux-gnu` | Tested | Ubuntu 24.04, whole workspace. Also runs the sanitizers and Miri (below). |
 | Linux ARM64 | `aarch64-unknown-linux-gnu` | Tested | Ubuntu 24.04 on an ARM64 runner, whole workspace. |
-| Linux x86 (32-bit) | `i686-unknown-linux-gnu` | Tested, experimental | Ubuntu 24.04 with multilib, `clingox-sys` and `clingox`. |
-| Linux ARMv7 | `armv7-unknown-linux-gnueabihf` | Tested, experimental, nightly | Cross-compiled and run under qemu-user. Doctests are left out. |
+| Linux x86 (32-bit) | `i686-unknown-linux-gnu` | Tested | Ubuntu 24.04 with multilib, `clingox-sys` and `clingox`. |
+| Linux ARMv7 | `armv7-unknown-linux-gnueabihf` | Tested, nightly | Cross-compiled and run under qemu-user. |
 | macOS ARM64 | `aarch64-apple-darwin` | Tested | macOS 15, whole workspace. |
 | macOS x86_64 | `x86_64-apple-darwin` | Tested | macOS 15 on an Intel runner, whole workspace. |
 | Windows x64 | `x86_64-pc-windows-msvc` | Tested | Windows Server 2025, whole workspace. |
-| Windows ARM64 | `aarch64-pc-windows-msvc` | Tested, experimental | Windows 11 on an ARM64 runner, whole workspace. |
-| Windows x86 (32-bit) | `i686-pc-windows-msvc` | Tested, experimental | Windows Server 2025, `clingox-sys` and `clingox`. |
+| Windows ARM64 | `aarch64-pc-windows-msvc` | Tested | Windows 11 on an ARM64 runner, whole workspace. |
+| Windows x86 (32-bit) | `i686-pc-windows-msvc` | Tested | Windows Server 2025, `clingox-sys` and `clingox`. |
 | Windows with MinGW | `*-pc-windows-gnu` | Not tested | |
 | FreeBSD 14 | `x86_64-unknown-freebsd` | Tested | A virtual machine on a Linux runner, whole workspace. |
-| NetBSD 10 | `x86_64-unknown-netbsd` | Tested, experimental | A virtual machine, whole workspace, with the system GCC and libstdc++. |
-| OpenBSD 7 | `x86_64-unknown-openbsd` | Tested, experimental | A virtual machine, whole workspace, with the Rust that OpenBSD packages. |
+| NetBSD 10 | `x86_64-unknown-netbsd` | Tested | A virtual machine, whole workspace, with the system GCC and libstdc++. |
+| OpenBSD 7 | `x86_64-unknown-openbsd` | Tested | A virtual machine, whole workspace, with the Rust that OpenBSD packages. |
 
 All Windows targets are tested with the MSVC toolchain only. The `-gnu` targets
 may work, but no one has run the suite on them. On Windows, the vendored build
@@ -50,10 +50,10 @@ compiles clingo with `/EHsc`; a clingo installed on the system needs the same (s
 | Platform | Target | Status | How it runs |
 |---|---|---|---|
 | Android x86_64 | `x86_64-linux-android` | Tested | An emulator, API level 34. |
-| Android x86 (32-bit) | `i686-linux-android` | Tested, experimental, nightly | An emulator, API level 30. |
+| Android x86 (32-bit) | `i686-linux-android` | Tested, nightly | An emulator, API level 30. |
 | Android ARM64 | `aarch64-linux-android` | Built only | See below. |
-| Android ARMv7 | `armv7-linux-androideabi` | Tested, experimental, nightly | The 32-bit x86 emulator's ARM translation, API level 30. See below. |
-| iOS simulator | `aarch64-apple-ios-sim` | Tested, experimental | The iPhone simulator on an Apple silicon runner. |
+| Android ARMv7 | `armv7-linux-androideabi` | Tested, nightly | The 32-bit x86 emulator's ARM translation, API level 30. See below. |
+| iOS simulator | `aarch64-apple-ios-sim` | Tested | The iPhone simulator on an Apple silicon runner. |
 | iOS devices | `aarch64-apple-ios` | Not tested | |
 
 On Android and iOS the test executables run as plain programs in the emulator or
@@ -62,8 +62,9 @@ compile-fail test file, which starts `cargo` and so cannot run inside the simula
 
 Android ARM64 is not tested yet. Its test executables are built in CI, but the job
 that should run them on an ARM64 emulator needs hardware virtualisation (KVM), which
-the ARM64 runner does not offer, so the job fails after checking for it (it is
-experimental, so the run stays green).
+the ARM64 runner does not offer, so the job fails after checking for it. It is the
+one job marked `continue-on-error`, so its failure is reported without failing the
+run.
 
 The ARMv7 test executables run on the 32-bit x86 emulator through its ARM
 translation layer, with the C++ runtime linked statically into each executable.
@@ -107,8 +108,10 @@ tests and the callback trampolines.
 ## Building for WebAssembly
 
 clingox targets `wasm32-unknown-emscripten`, which is the target clingo itself
-documents for web builds. The module for a minimal program is about 655 KB
-compressed with gzip. It is single-threaded by default. A multi-threaded build is
+documents for web builds. In a release build, the module of a small program that
+adds, grounds and solves a program and prints its answer sets is about 2.4 MB, or
+0.84 MB compressed with gzip (Rust 1.99, Emscripten 6.0.10). It is single-threaded
+by default. A multi-threaded build is
 possible on pages served with cross-origin isolation headers, and currently needs
 nightly Rust.
 

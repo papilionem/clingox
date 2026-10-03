@@ -114,7 +114,7 @@ use crate::theory::Id;
 ///   (`libclingo/src/clingocontrol.cc:437-438`), and `prepare` calls
 ///   `out_->endStep`, reaching `Observer::endStep` -> `call(obs_.end_step)`
 ///   (`clingocontrol.cc:558-561`, `control.cc:2221`), before any handle is even
-///   returned to the caller -- so a failing `end_step` can make the solve call
+///   returned to the caller, so a failing `end_step` can make the solve call
 ///   itself fail outright, exactly as a failing directive can make
 ///   `clingo_backend_rule` fail.
 ///
@@ -125,8 +125,8 @@ use crate::theory::Id;
 /// unchanged, poisoning the control whatever its kind (this holds for every
 /// path above; see the poisoning note on [`Control`]). A panic is caught,
 /// recorded, and resumed on the caller's thread once the call returns,
-/// poisoning the control the same way, with the panic's own payload untouched
-/// -- no entry point adds its own context to it.
+/// poisoning the control the same way, with the panic's own payload untouched:
+/// no entry point adds its own context to it.
 ///
 /// # Examples
 ///
@@ -480,7 +480,7 @@ impl GroundingLimit {
 /// contribution pushes one over fails at once, with
 /// [`ErrorKind::GroundingLimit`], before reaching the wrapped observer at all
 /// (counting happens before checking, so the offending callback is refused
-/// itself, not only the next one after it -- a version that checked first left
+/// itself, not only the next one after it: a version that checked first left
 /// the last callback of a grounding step free to push a count over the limit
 /// with no later callback ever refused, and `ground_with_limit` returned `Ok`).
 ///

@@ -424,7 +424,7 @@ fn p9b_the_last_model_only_and_no_call_for_unsatisfiable() {
     }
     let (result, seen) = record("a. :- a.", &ALL);
     assert_eq!(result.unwrap(), 20);
-    assert!(seen.is_empty());
+    assert_eq!(seen, []);
 }
 
 // ---- failure ----

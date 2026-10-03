@@ -385,7 +385,7 @@ fn pyclingo_config() {
     let mut ctl = Control::new().unwrap();
     let conf = ctl.configuration();
     let keys = conf.keys("").unwrap();
-    assert!(!keys.is_empty());
+    assert_ne!(keys, Vec::<String>::new());
     assert!(keys.contains(&"solve".to_string()));
 
     let solve_keys = conf.keys("solve").unwrap();
@@ -405,7 +405,7 @@ fn pyclingo_simple_stats() {
     let _result = ctl.solve(&[]).unwrap();
     let stats = ctl.statistics().unwrap();
     let keys = stats.keys("").unwrap();
-    assert!(!keys.is_empty());
+    assert_ne!(keys, Vec::<String>::new());
     let models = stats.value("summary.models.enumerated").unwrap_or(0.0);
     assert!(models >= 1.0);
 }
@@ -1103,7 +1103,7 @@ fn pyclingo_theory_observer() {
         ) -> clingox::Result<()> {
             self.0.lock().unwrap().insert("output_term");
             assert_eq!(symbol, sym("t"));
-            assert!(!condition.is_empty());
+            assert_ne!(condition, []);
             Ok(())
         }
         fn theory_term_number(&mut self, _term: Id, number: i32) -> clingox::Result<()> {
@@ -1273,7 +1273,7 @@ fn pyclingo_theory_observer_with_guard() {
             _right_hand_side: Id,
         ) -> clingox::Result<()> {
             self.called.lock().unwrap().insert("theory_atom_with_guard");
-            assert!(elements.is_empty());
+            assert_eq!(elements, []);
             Ok(())
         }
     }

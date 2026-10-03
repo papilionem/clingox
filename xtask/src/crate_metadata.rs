@@ -209,19 +209,28 @@ mod tests {
 
     #[test]
     fn keywords_follow_the_registry() {
-        assert!(keyword_problems(&["clingo", "answer-set", "asp", "c++", "ffi_2"]).is_empty());
+        assert_eq!(
+            keyword_problems(&["clingo", "answer-set", "asp", "c++", "ffi_2"]),
+            Vec::<String>::new()
+        );
         // 22 bytes: the keyword crates.io refused.
         assert_eq!(keyword_problems(&["answer-set-programming"]).len(), 1);
         assert_eq!(keyword_problems(&["-asp"]).len(), 1);
         assert_eq!(keyword_problems(&["answer set"]).len(), 1);
         assert_eq!(keyword_problems(&["a", "b", "c", "d", "e", "f"]).len(), 1);
-        assert!(keyword_problems(&["exactly-twenty-chars"]).is_empty());
+        assert_eq!(
+            keyword_problems(&["exactly-twenty-chars"]),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
     fn categories_must_be_known_slugs() {
         let known = ["api-bindings", "science"];
-        assert!(category_problems(&["science"], &known).is_empty());
+        assert_eq!(
+            category_problems(&["science"], &known),
+            Vec::<String>::new()
+        );
         assert_eq!(
             category_problems(&["answer-set-programming"], &known).len(),
             1

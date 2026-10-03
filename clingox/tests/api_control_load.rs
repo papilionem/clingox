@@ -186,3 +186,85 @@ fn load_aspif_on_a_missing_file_is_a_runtime_error_and_leaves_the_control_usable
     ctl.ground(&[Part::base()]).unwrap();
     assert!(ctl.solve(&[]).unwrap().is_sat());
 }
+
+/// A string symbol is read lossily, unlike AST text: clingo accepts a
+/// string constant that is not valid UTF-8 from a file, and
+/// `Symbol::as_string` returns it with U+FFFD in place of the invalid byte
+/// (a `&'static str` from clingo's symbol table cannot carry an error; AST
+/// reads return `ErrorKind::Utf8` instead, see `api_ast_parse.rs`).
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+#[test]
+fn a_non_utf8_string_constant_from_a_file_reads_back_with_a_replacement_character() {
+    let dir = scratch_dir("api_control_load_non_utf8_string");
+    let file = dir.join("bad_utf8_string.lp");
+    std::fs::write(&file, b"p(\"a\xffb\").\n").unwrap();
+    let mut ctl = Control::new().unwrap();
+    ctl.load(&file).unwrap();
+    ctl.ground(&[Part::base()]).unwrap();
+    let (result, models) = ctl.solve_all().unwrap();
+    assert!(result.is_sat());
+    assert_eq!(models.len(), 1);
+    let symbols = models[0].symbols();
+    assert_eq!(symbols.len(), 1);
+    let argument = symbols[0].arguments().unwrap()[0];
+    assert_eq!(argument.as_string(), Some("a\u{fffd}b"));
+}
+
+/// The string symbol of `p("a\xffb").` read from a file, its whole fact, and the
+/// control that holds it.
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+fn non_utf8_fact(dir: &str) -> (Control, Symbol) {
+    let dir = scratch_dir(dir);
+    let file = dir.join("bad_utf8_string.lp");
+    std::fs::write(&file, b"p(\"a\xffb\").\n").unwrap();
+    let mut ctl = Control::new().unwrap();
+    ctl.load(&file).unwrap();
+    ctl.ground(&[Part::base()]).unwrap();
+    let (_, models) = ctl.solve_all().unwrap();
+    let fact = models[0].symbols()[0];
+    (ctl, fact)
+}
+
+/// Displaying such a symbol must not fail: `Display` writes U+FFFD for the
+/// invalid byte, the rule `as_string` follows. It used to return `fmt::Error`,
+/// which made `to_string` and `{}` panic.
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+#[test]
+fn a_non_utf8_string_symbol_displays_with_a_replacement_character() {
+    let (_ctl, fact) = non_utf8_fact("api_control_load_non_utf8_display");
+    assert_eq!(fact.to_string(), "p(\"a\u{fffd}b\")");
+    assert_eq!(format!("{fact:?}"), "Symbol(p(\"a\u{fffd}b\"))");
+}
+
+/// A model that holds such a symbol displays too.
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+#[test]
+fn a_model_with_a_non_utf8_string_displays() {
+    let dir = scratch_dir("api_control_load_non_utf8_model_display");
+    let file = dir.join("bad_utf8_string.lp");
+    std::fs::write(&file, b"p(\"a\xffb\").\n").unwrap();
+    let mut ctl = Control::new().unwrap();
+    ctl.load(&file).unwrap();
+    ctl.ground(&[Part::base()]).unwrap();
+    let mut handle = ctl.solve_yield(&[]).unwrap();
+    let model = handle.next_model().unwrap().unwrap();
+    assert!(model.to_string().contains("p(\"a\u{fffd}b\")"), "{model}");
+    drop(handle);
+}
+
+/// `add_facts` must not add a different fact than it was given: printing the
+/// symbol lossily would turn the byte into U+FFFD. It reports `Utf8`, which
+/// does not poison, and adds nothing. It used to report `BadAlloc`, which
+/// poisons.
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
+#[test]
+fn add_facts_refuses_a_non_utf8_string_symbol_without_poisoning() {
+    let (mut ctl, fact) = non_utf8_fact("api_control_load_non_utf8_add_facts");
+    let err = ctl.add_facts([fact]).unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Utf8, "{err}");
+    ctl.add_base("q.").unwrap();
+    ctl.ground(&[Part::base()]).unwrap();
+    let (result, models) = ctl.solve_all().unwrap();
+    assert!(result.is_sat());
+    assert_eq!(models.len(), 1);
+}

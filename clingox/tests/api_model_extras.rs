@@ -303,5 +303,5 @@ fn priorities_use_the_actual_level_numbers_not_the_cost_values() {
 #[test]
 fn priorities_is_empty_without_optimisation_statements() {
     let priorities = only_model_priorities("a.");
-    assert!(priorities.is_empty());
+    assert_eq!(priorities, []);
 }

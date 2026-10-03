@@ -344,10 +344,13 @@ impl Ord for Symbol {
     }
 }
 
+/// A string read from a file that is not valid UTF-8 is written with U+FFFD in
+/// place of the invalid bytes, as [`Symbol::as_string`] returns it.
 impl fmt::Display for Symbol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Printing fails only when clingo cannot allocate the text.
-        let text = raw::symbol_to_string(self.0).map_err(|_| fmt::Error)?;
+        // Lossy, since a `Display` that fails makes `to_string` and `{}` panic.
+        // What is left to fail is clingo running out of memory for the text.
+        let text = raw::symbol_to_string_lossy(self.0).map_err(|_| fmt::Error)?;
         f.write_str(&text)
     }
 }

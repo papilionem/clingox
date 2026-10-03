@@ -35,8 +35,8 @@ use clingox::backend::Atom;
 use clingox::observer::GroundProgramObserver;
 use clingox::propagate::{PropagateControl, PropagateInit, Propagator, SolverLiteral};
 use clingox::{
-    ConfigKind, Control, FromSymbol, FunctionCall, Part, ProgramLiteral, ShowType, StatsTree,
-    Symbol, ToSymbol,
+    ConfigEntry, ConfigKind, Control, FromSymbol, FunctionCall, Part, ProgramLiteral, ShowType,
+    StatKind, StatsEntry, StatsTree, Symbol, ToSymbol,
 };
 
 const N_SYMBOLS: usize = 1000;
@@ -730,6 +730,40 @@ fn walk_stats(tree: &StatsTree) -> usize {
     }
 }
 
+/// The walk of `walk_config` through the entry cursor: every node counted,
+/// every value read, one or two C calls per step and no path.
+fn walk_config_entries(ctl: &mut Control) -> usize {
+    fn go(entry: ConfigEntry<'_>, n: &mut usize) {
+        *n += 1;
+        match entry.kind().unwrap() {
+            ConfigKind::Value => {
+                black_box(entry.value().unwrap());
+            }
+            _ => {
+                for child in entry.children().unwrap() {
+                    go(child.unwrap().1, n);
+                }
+            }
+        }
+    }
+    let cfg = ctl.configuration();
+    let mut n = 0;
+    go(cfg.root().unwrap(), &mut n);
+    n
+}
+
+/// The walk of `walk_stats` through the entry cursor, without building a tree.
+fn walk_stats_entries(entry: StatsEntry<'_>) -> usize {
+    match entry.kind().unwrap() {
+        StatKind::Value => usize::from(black_box(entry.value().unwrap()) >= 0.0),
+        _ => entry
+            .children()
+            .unwrap()
+            .map(|child| walk_stats_entries(child.unwrap().1))
+            .sum(),
+    }
+}
+
 fn config_and_stats(c: &mut Criterion) {
     let mut g = small(c, "config_stats");
     let mut ctl = Control::new().unwrap();
@@ -738,6 +772,10 @@ fn config_and_stats(c: &mut Criterion) {
     g.throughput(Throughput::Elements(nodes as u64));
     g.bench_function("config_walk", |b| {
         b.iter(|| black_box(walk_config(&mut ctl)));
+    });
+    assert_eq!(walk_config_entries(&mut ctl), nodes);
+    g.bench_function("config_walk_entries", |b| {
+        b.iter(|| black_box(walk_config_entries(&mut ctl)));
     });
     let mut solved = Control::with_args(["--stats"]).unwrap();
     solved.add_base("p(1..50). {q(1..8)}.").unwrap();
@@ -750,11 +788,30 @@ fn config_and_stats(c: &mut Criterion) {
     g.bench_function("stats_snapshot", |b| {
         b.iter(|| black_box(solved.statistics().unwrap().snapshot().unwrap()));
     });
+    assert_eq!(
+        walk_stats_entries(solved.statistics().unwrap().root()),
+        vals
+    );
+    g.bench_function("stats_walk_entries", |b| {
+        b.iter(|| {
+            let stats = solved.statistics().unwrap();
+            black_box(walk_stats_entries(stats.root()))
+        });
+    });
     g.bench_function("stats_path_reads", |b| {
         b.iter(|| {
             let stats = solved.statistics().unwrap();
             for _ in 0..100 {
                 black_box(stats.value("summary.models.enumerated").unwrap());
+            }
+        });
+    });
+    g.bench_function("stats_entry_reads", |b| {
+        b.iter(|| {
+            let stats = solved.statistics().unwrap();
+            let entry = stats.entry("summary.models.enumerated").unwrap();
+            for _ in 0..100 {
+                black_box(entry.value().unwrap());
             }
         });
     });
@@ -790,6 +847,32 @@ fn application(c: &mut Criterion) {
             black_box(code)
         });
     });
+    g.finish();
+}
+
+// ---------------------------------------------------------------------------
+// The cost of a blocking solve on a control that has already solved
+
+/// A multi-shot program of thousands of tiny solves pays the fixed cost of a
+/// solve each time. `blocking_solve` is the row that shows it: `Control::solve`
+/// of `{a}.` on one control. With threads, `solve` starts clasp's thread for
+/// the search unless nothing can interrupt it, so `with_live_handle`, which
+/// keeps an `InterruptHandle` alive, is the same call on the path that always
+/// starts the thread.
+fn blocking_solve(c: &mut Criterion) {
+    let mut g = small(c, "blocking_solve");
+    let mut ctl = Control::new().unwrap();
+    ctl.add_base("{a}.").unwrap();
+    ctl.ground(&[Part::base()]).unwrap();
+    assert!(ctl.solve(&[]).unwrap().is_sat());
+    g.bench_function("multishot_trivial_solve", |b| {
+        b.iter(|| black_box(ctl.solve(&[]).unwrap()));
+    });
+    let handle = ctl.interrupt_handle();
+    g.bench_function("multishot_trivial_solve_with_live_handle", |b| {
+        b.iter(|| black_box(ctl.solve(&[]).unwrap()));
+    });
+    drop(handle);
     g.finish();
 }
 
@@ -852,6 +935,7 @@ criterion_group!(
     ast_benches,
     config_and_stats,
     application,
+    blocking_solve,
     end_to_end
 );
 criterion_main!(benches);

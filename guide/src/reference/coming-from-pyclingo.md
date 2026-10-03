@@ -56,7 +56,9 @@ assert_eq!(models.len(), 4);
 | `ctl.cleanup()` | `ctl.cleanup()` |
 | `ctl.use_enumeration_assumption = b` | `ctl.set_enable_enumeration_assumption(b)?` |
 | `ctl.configuration.solve.models = "0"` | `ctl.configuration().set("solve.models", "0")?` ([Configure the solver](../how-to/configuration.md)) |
+| `ctl.configuration.solve` and the `Configuration` objects it returns | `ctl.configuration().entry("solve")?`, a `ConfigEntry` that reads its own `kind`, `value`, `keys` and `children` and steps with `entry("models")` ([Configure the solver](../how-to/configuration.md#walk-the-whole-tree)) |
 | `ctl.statistics["summary"]["models"]["enumerated"]` | `ctl.statistics()?.value("summary.models.enumerated")?`, or `.snapshot()?` for a tree |
+| `ctl.statistics["summary"]` and the `StatisticsMap` objects it returns | `ctl.statistics()?.entry("summary")?`, a `StatsEntry` that reads its own `kind`, `value` and `keys` and steps with `entry("models")` or `children()` ([Reading statistics by entry](../concepts/solve-events.md#reading-statistics-by-entry)) |
 | `ctl.symbolic_atoms` | `ctl.symbolic_atoms()?` with `iter`, `by_signature`, `find`, `of::<T>()` |
 | `ctl.theory_atoms` | `ctl.theory_atoms()?` |
 | `with ctl.backend() as b:` | `ctl.with_backend(\|b\| { .. })?` |

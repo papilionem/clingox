@@ -38,8 +38,8 @@ fn priorities_are_the_levels_not_the_costs() {
 #[test]
 fn priorities_are_empty_without_optimisation_statements() {
     let model = only_model("a.");
-    assert!(model.priorities().is_empty());
-    assert!(model.cost().is_empty());
+    assert_eq!(model.priorities(), []);
+    assert_eq!(model.cost(), []);
 }
 
 #[test]

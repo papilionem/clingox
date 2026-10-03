@@ -68,3 +68,33 @@ mod coming_from_pyclingo {}
 
 #[doc = include_str!("../../guide/src/reference/coming-from-clingo-crate.md")]
 mod coming_from_clingo_crate {}
+
+#[doc = include_str!("../../guide/src/reference/feature-flags.md")]
+mod feature_flags {}
+
+#[doc = include_str!("../../guide/src/reference/error-kinds.md")]
+mod error_kinds {}
+
+#[doc = include_str!("../../guide/src/how-to/time-budget.md")]
+mod time_budget {}
+
+#[doc = include_str!("../../guide/src/how-to/test-your-rules.md")]
+mod test_your_rules {}
+
+#[doc = include_str!("../../guide/src/how-to/browser.md")]
+mod browser {}
+
+#[doc = include_str!("../../guide/src/how-to/android.md")]
+mod android {}
+
+#[doc = include_str!("../../guide/src/how-to/server.md")]
+mod server {}
+
+#[doc = include_str!("../../guide/src/how-to/rewrite-programs.md")]
+mod rewrite_programs {}
+
+#[doc = include_str!("../../guide/src/concepts/safety-and-threads.md")]
+mod safety_and_threads {}
+
+#[doc = include_str!("../../guide/src/reference/api-reference.md")]
+mod api_reference {}

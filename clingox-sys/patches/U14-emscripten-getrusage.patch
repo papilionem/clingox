@@ -1,0 +1,34 @@
+Fix for clingox UPSTREAM-ISSUES U14: clasp asks Emscripten's getrusage for CPU
+time, which is only a stub there.
+
+Emscripten implements __syscall_getrusage as a stub that fills in the same
+made-up times on every call (1.000002 s user, 3.000004 s system) and, in its
+debug libc, prints "warning: unsupported syscall: __syscall_getrusage" each
+time; a test run of clingox printed it 45,325 times. CPU times are differences
+of two readings, so they are 0 either way. One reading is used whole: when a
+thread of a parallel search ends (parallel_solve.cpp, threaded builds only),
+where the made-up 4 s would be added. rusageTime now returns 0 under
+Emscripten without calling getrusage. Against clingo v5.8.2; upstream's own
+change for Emscripten (clasp#115) is not in 5.8.2.
+
+diff --git a/clasp/src/timer.cpp b/clasp/src/timer.cpp
+--- a/clasp/src/timer.cpp
++++ b/clasp/src/timer.cpp
+@@ -79,10 +79,17 @@
+ 		: 0.0;
+ }
+ inline double rusageTime(int who) {
++#if defined(__EMSCRIPTEN__)
++	// Emscripten only stubs getrusage: it returns the same made-up times on
++	// every call and its debug libc prints a warning each time.
++	(void)who;
++	return 0.0;
++#else
+ 	struct rusage usage;
+ 	getrusage(who, &usage);
+ 	return(static_cast<double>(usage.ru_utime.tv_sec) + static_cast<double>(usage.ru_utime.tv_usec / 1000000.0))
+ 		+ (static_cast<double>(usage.ru_stime.tv_sec) + static_cast<double>(usage.ru_stime.tv_usec / 1000000.0));
++#endif
+ }
+ double ProcessTime::getTime() {
+ 	return rusageTime(RUSAGE_SELF);

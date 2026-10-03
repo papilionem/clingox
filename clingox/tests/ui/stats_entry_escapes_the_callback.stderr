@@ -1,0 +1,22 @@
+error[E0621]: explicit lifetime required in the type of `step`
+  --> tests/ui/stats_entry_escapes_the_callback.rs:11:5
+   |
+11 |     *slot = Some(step.root());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^ lifetime `'a` required
+   |
+help: add explicit lifetime `'a` to the type of `step`
+   |
+10 | fn keep<'a>(step: &'a MutableStatistics<'_>, slot: &mut Option<StatsEntry<'a>>) {
+   |                    ++
+
+error[E0621]: explicit lifetime required in the type of `step`
+  --> tests/ui/stats_entry_escapes_the_callback.rs:11:5
+   |
+11 |     *slot = Some(step.root());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^ lifetime `'a` required
+   |
+help: add explicit lifetime `'a` to the type of `step`
+   |
+10 - fn keep<'a>(step: &MutableStatistics<'_>, slot: &mut Option<StatsEntry<'a>>) {
+10 + fn keep<'a>(step: &MutableStatistics<'a>, slot: &mut Option<StatsEntry<'a>>) {
+   |

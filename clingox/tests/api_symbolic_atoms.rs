@@ -171,7 +171,7 @@ fn an_empty_grounding_has_no_atoms() {
     let atoms = ctl.symbolic_atoms().unwrap();
     assert_eq!(atoms.len().unwrap(), 0);
     assert_eq!(atoms.iter().count(), 0);
-    assert!(atoms.signatures().unwrap().is_empty());
+    assert_eq!(atoms.signatures().unwrap(), []);
 }
 
 #[test]

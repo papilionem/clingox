@@ -62,9 +62,9 @@ tests and the four applications' test suites pass.
 | typed reads of an atom set | `ctl.symbolic_atoms()?.of::<T>()?` (see [below](#typed-symbolic-atom-reads)) |
 | `ctl.theory_atoms()` | `ctl.theory_atoms()`; terms are `TheoryTerm` values and `Id`s |
 | `ctl.backend()` | `ctl.with_backend(\|backend\| ..)` |
-| `configuration_mut()` and `Id` keys | `ctl.configuration()` and paths such as `"solve.models"`, with `get`, `set`, `keys`, `kind`, `len`, `element` ([Configure the solver](../how-to/configuration.md)) |
+| `configuration_mut()` and `Id` keys | `ctl.configuration()` with paths such as `"solve.models"` (`get`, `set`, `keys`, `kind`, `len`, `element`), or a `ConfigEntry` from `root()` or `entry(path)`, which holds the key for one entry as the crate's `Id` does, steps with `children()` and carries no path ([Configure the solver](../how-to/configuration.md)) |
 | `configuration_type(key)` | `conf.kind(path)?`, a `ConfigKind` |
-| `ctl.statistics()` with `u64` keys | `ctl.statistics()?`, paths such as `"summary.times.solve"`, or `.snapshot()?` for a `StatsTree` |
+| `ctl.statistics()` with `u64` keys | `ctl.statistics()?`, paths such as `"summary.times.solve"`, or a `StatsEntry` from `root()` or `entry(path)`, which holds the key for one entry as the crate's `u64` does and steps with `children()`; `.snapshot()?` gives a `StatsTree` ([Reading statistics by entry](../concepts/solve-events.md#reading-statistics-by-entry)) |
 | `Symbol::create_id("a", true)` | `Symbol::function("a", &[])?` |
 | `Symbol::create_number(n)` | `Symbol::number(n)` |
 | `Symbol::create_string(s)` | `Symbol::string(s)?` |

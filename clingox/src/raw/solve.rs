@@ -231,9 +231,9 @@ impl ControlHandle {
         let data = std::ptr::from_ref(boxed.as_ref())
             .cast_mut()
             .cast::<c_void>();
-        // Stored before the call below, not after: in mode 0 (no threads)
-        // the whole search, every event included, runs and finishes inside
-        // that one call. Since U26 no handler
+        // Stored before the call below, not after: in mode 0 the whole
+        // search, every event included, runs and finishes inside that one
+        // call. Since U26 no handler
         // failure on any event ever makes the trampoline return `false` to
         // clingo any more (`raw::events::stop` always takes the
         // `*goon = false` path), so this call itself is not currently known
@@ -346,11 +346,7 @@ impl ControlHandle {
     where
         H: crate::solve_events::SolveEventHandler + Send + 'h,
     {
-        let mode = if super::HAS_THREADS {
-            ffi::clingo_solve_mode_async
-        } else {
-            0
-        };
+        let mode = self.blocking_mode();
         self.logged_call(|handle| {
             handle.start_search_with_handler(mode, assumptions, handler)?;
             let outcome = handle.solve_get();
@@ -361,35 +357,71 @@ impl ControlHandle {
         })
     }
 
+    /// The mode of a blocking solve: clingo's mode 0 when nothing can
+    /// interrupt the search, async mode otherwise.
+    ///
+    /// Mode 0 runs the whole search inside `clingo_control_solve` on the
+    /// calling thread, which saves the thread clasp starts for every async
+    /// search. It is used when the build has no threads (async mode does not
+    /// exist there), and when the build has threads and
+    /// `Arc::get_mut(&mut self.sync)` succeeds, that is, when no other
+    /// `Arc<SolveSync>` exists: no `InterruptHandle`, no timeout thread
+    /// (which holds a handle), no printer slot of an application, and no open
+    /// search (an event handler's box holds one).
+    ///
+    /// That is sound because a new holder of the shared state can only be
+    /// made by [`ControlHandle::interrupt_state`], which takes `&self`, and
+    /// the solve holds `&mut self` for its whole length: none can appear
+    /// while a mode-0 search runs, and the borrow checker enforces it. The
+    /// phase `Inside`, in which `SolveSync::interrupt` does nothing, is
+    /// therefore only reached when nobody can call it, so the invariant of
+    /// DESIGN S13 is untouched. The test fails safe: a holder it cannot see
+    /// makes `get_mut` fail, and the search stays async. A weak reference
+    /// would not be seen, and none exists. An interrupt queued before the
+    /// solve is still drained by clasp in every mode
+    /// (`clasp_facade.cpp:322`).
+    ///
+    /// This must run before anything clones `self.sync` for the search
+    /// (`start_search_with_handler` does), and it is used only by the
+    /// blocking entry points: [`ControlHandle::solve_timed`], the yield paths
+    /// and the async entry points choose their own mode.
+    fn blocking_mode(&mut self) -> ffi::clingo_solve_mode_bitset_t {
+        if !super::HAS_THREADS || Arc::get_mut(&mut self.sync).is_some() {
+            0
+        } else {
+            ffi::clingo_solve_mode_async
+        }
+    }
+
     /// Solves under program-literal assumptions and waits for the result
     /// (DESIGN S7).
     ///
-    /// Where clasp has threads, the search runs in async mode and this thread
+    /// The mode is [`ControlHandle::blocking_mode`]'s: clingo's blocking mode
+    /// 0 whenever nothing can interrupt the search, so the whole search runs
+    /// inside `clingo_control_solve` on this thread, and async mode otherwise,
+    /// where clasp runs the search on a thread of its own and this thread
     /// waits for it in `clingo_solve_handle_get`. The search itself runs as
-    /// fast as clingo's own blocking solve, since both run clasp's `solve` to
-    /// its end in one go (65 536 models: 17.2 ms either way). Each call pays a
-    /// fixed cost on top, because clasp starts a new thread for every async
-    /// search (`clasp_facade.cpp:378`): a trivial program took 159 us against
-    /// 108 us blocking in a C++ measurement, pinned to one core or not
-    /// (`docs/dev/BENCHMARKS.md`). That is negligible for a real search and
-    /// significant for many tiny multi-shot solves. Async mode is kept because
-    /// it separates the start of the search from its run, which the interrupt
+    /// fast in either, since both run clasp's `solve` to its end in one go
+    /// (65 536 models: 17.2 ms either way). The difference is a fixed cost per
+    /// call: clasp starts a new thread for every async search
+    /// (`clasp_facade.cpp:378`), 28 to 34 us of a 33 to 40 us trivial
+    /// multi-shot solve, which is negligible for a real search and
+    /// significant for many tiny solves on one control
+    /// (`docs/dev/BENCHMARKS.md`).
+    ///
+    /// Async mode is kept for a search that something can interrupt because it
+    /// separates the start of the search from its run, which the interrupt
     /// design needs (`raw::interrupt`, DESIGN S13 and S14): an
     /// `InterruptHandle` or a timeout can reach the search only once the
-    /// strategy is known to be running, never before or after. A yield search would be driven model by model
-    /// from this thread instead, up to 21 times slower with several solver
-    /// threads, and clasp would not give the warnings of a blocking solve.
-    /// Without threads, the search runs in mode 0 inside `clingo_control_solve`
-    /// (see `raw::interrupt` for what that means for interrupts).
+    /// strategy is known to be running, never before or after. A yield search
+    /// would be driven model by model from this thread instead, up to 21 times
+    /// slower with several solver threads, and clasp would not give the
+    /// warnings of a blocking solve.
     ///
     /// The search is closed before returning, so none can be left over (S4),
     /// and a panic from the logger resumes only after that.
     pub(crate) fn solve(&mut self, assumptions: &[i32]) -> Result<SolveOutcome, Error> {
-        let mode = if super::HAS_THREADS {
-            ffi::clingo_solve_mode_async
-        } else {
-            0
-        };
+        let mode = self.blocking_mode();
         self.logged_call(|handle| {
             handle.start_search(mode, assumptions)?;
             let outcome = handle.solve_get();
@@ -502,7 +534,7 @@ impl ControlHandle {
     /// the handler and never promoted: every other path that reaches this
     /// call closes a search that is not what the caller who triggered the
     /// close is asking about at all, but a leftover this call's own
-    /// contract requires it to clean up first (DESIGN S4) -- a forgotten
+    /// contract requires it to clean up first (DESIGN S4): a forgotten
     /// handle's search, closed by the next entry point or by
     /// `SolveHandle`'s/`AsyncSolveHandle`'s own `Drop`. `Drop` cannot report
     /// a failure, and surfacing it later would blame whatever unrelated call

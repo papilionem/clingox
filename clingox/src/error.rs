@@ -327,7 +327,8 @@ impl std::error::Error for Error {
 pub enum ErrorKind {
     /// A program or term has a syntax error. The messages say where.
     Parse,
-    /// clingo reported a runtime error, such as an invalid option.
+    /// clingo reported a runtime error, such as a rejected option value or a
+    /// missing file. An unknown command-line option is [`ErrorKind::Logic`].
     Runtime,
     /// clingo reported wrong use of its API.
     Logic,

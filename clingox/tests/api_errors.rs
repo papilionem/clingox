@@ -34,7 +34,7 @@ fn conversion_errors_can_be_built_by_users() {
     let err = Error::conversion("expected a colour, found `p(1)`");
     assert_eq!(err.kind(), ErrorKind::Conversion);
     assert_eq!(err.to_string(), "expected a colour, found `p(1)`");
-    assert!(err.messages().is_empty());
+    assert_eq!(err.messages(), []);
     assert!(err.source().is_none(), "a conversion error has no source");
 }
 

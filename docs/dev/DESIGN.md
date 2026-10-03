@@ -205,6 +205,9 @@ number starts the file name (RULES 8, decided 2026-09-27):
   are undefined, like a division by zero, instead of raising SIGFPE;
 - `U2-leak-symbol-table.patch`: the symbol table is allocated once and never
   destroyed, so symbols stay valid while static destructors run;
+- `U14-emscripten-getrusage.patch`: clasp's `rusageTime` returns 0 under Emscripten
+  instead of calling `getrusage`, which is only a stub there and prints a warning on
+  every call in a debug build.
 - `U19-statistics-type-registry.patch`: clasp's registry of statistic types is a
   fixed array under a mutex, so controls on several threads can register and read
   statistics at once (S12).
@@ -222,6 +225,9 @@ number starts the file name (RULES 8, decided 2026-09-27):
 - `U50-parallel-split-leak.patch`: clasp's shared data for a parallel search frees the
   guiding paths still queued when it is destroyed, which a search stopped in splitting
   mode left behind.
+- `U53-reify-steps.patch`: `make_backend` passes `reify_steps` to the reifier
+  instead of `reify_sccs` twice, so a backend writer's reify options mean what the
+  command line's do.
 
 **Mechanism.** build.rs copies the part of the submodule that CMake reads (the list
 mirrors the `include` allowlist) to `$OUT_DIR/clingo-patched`, keeping the layout,
@@ -317,12 +323,17 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
     unconditionally too, with the observer's own error unchanged and its
     panic's payload untouched, no added context.
     `clingox/tests/observer_errors_outside_ground.rs` tests this.
-  - Open question: a backend writer
-    (`Control::register_backend_writer`) that fails to write partway through a
-    later `ground`, for example on a full disk, may leave the same kind of
-    truncated program. Such an error reaches clingox as an ordinary
-    `ErrorKind::Runtime` from `ground`, which does not poison. It is not
-    tested yet; decide it when a way to provoke the failure is found.
+  - A backend writer (`Control::register_backend_writer`) that fails to
+    write, for example on a full disk, reports nothing at all (U52): clingo
+    never checks its stream, so `ground` and `solve` succeed and the file is
+    short or empty. There is no error to poison for, and the control is
+    unharmed, since the writer only observes the program. The behaviour is
+    documented on the method and pinned by
+    `clingox/tests/api_backend_writer.rs::a_write_error_in_the_backend_writer_is_not_reported`
+    (`/dev/full`). If a patch ever turns the failure into an error, it must be
+    decided then whether that error poisons: the writer can run before clasp's
+    own backend in a combined observer, so an error from it may leave the
+    step unfinished.
   - clingo 5.8.2 reports an unknown command-line option as `clingo_error_logic`,
     although `clingo.h` documents `clingo_error_runtime`. clingox follows the
     library's behaviour, and a test pins it.
@@ -354,6 +365,16 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
     `&'c mut Control`.
   - `SymbolicAtoms<'c>`, `TheoryAtoms<'c>` and `Statistics<'c>` hold `&'c Control`, so
     `ground` and `solve` are statically impossible while they are alive.
+  - `ConfigEntry<'a>` and `StatsEntry<'a>`, the entry cursors, hold `&'a Control` and a
+    key, and are `Copy`. `Configuration::root` and `entry` lend them for the borrow of
+    the view (`&self`), so `Configuration::set` cannot run while one is alive; the view
+    cannot give them `'c`, because it holds `&'c mut` and a shared reborrow lasts only as
+    long as `&self`. `Statistics::root` returns `StatsEntry<'c>`: the view is two `Copy`
+    fields, so the entry takes its lifetime and `ctl.statistics()?.root()` compiles while
+    `ground` and `solve` stay impossible. `MutableStatistics::root` lends for `&self`, so
+    the writes (`&mut self`) cannot run while an entry lives. The keys inside are built
+    only by `raw` from a value clingo returned for that object, so no key can be invented
+    or paired with another control, and the borrow keeps the trees from changing under it.
   - Handles are `NonNull<ffi::T>` plus a lifetime, never `&mut` to an opaque struct.
 - **S6. Lending models.**
   - `next_model(&mut self) -> Result<Option<&Model>>`: a model dies when the search
@@ -368,7 +389,10 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
     `interrupted`), then close;
   - `Drop` only closes, which cancels.
   - A solve without yield or async runs entirely inside `clingo_control_solve`, so
-    that is where it blocks.
+    that is where it blocks. A blocking `Control::solve`, `solve_with` without a
+    timeout and `solve_with_events` use this mode (clingo's mode 0) whenever
+    nothing can interrupt the search, and async mode plus `get` otherwise;
+    the rule and why it is sound are in S13.
   - **A `SolveEventHandler`'s own failure recorded by a drop-triggered close
     is discarded, not promoted.** `close()`
     is the deliberate, caller-initiated close that reports it; `Drop`, and
@@ -427,6 +451,8 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
   | AST parse callback | caller's thread | borrowed `FnMut` |
   | logger | any thread | `Send + 'static`, owned by `Control` |
   | solve-event handler (`solve_async`) | solver threads | `Send + 'static`, owned |
+  | solve-event handler (`solve_yield_with_events`) | the caller's thread, inside `next_model`, `get` and `close`, with one solver thread; any solver thread with several | `Send + 'static`, owned |
+  | solve-event handler (`solve_with_events`) | the caller's thread in mode 0 (S13), clasp's thread in async mode; with several solver threads, any of them | `Send`, may borrow |
   | observer | caller's thread during ground | `Send + 'static`, owned |
   | propagator | several solver threads, re-entrantly | S11 |
 
@@ -434,6 +460,16 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
   model (`clasp/src/parallel_solve.cpp:654-683`). That is why `for_each_model` uses
   the yield handle instead. A runtime test with 4 threads and a `!Send` capture
   proves the closure never leaves the caller's thread.
+
+  **A blocking solve runs on the caller's thread when nothing can interrupt it.**
+  With one solver thread, `Control::solve`, `solve_with` without a timeout and
+  `solve_with_events` run the whole search inside `clingo_control_solve` (S13),
+  so the handler of `solve_with_events`, the propagators and the logger are
+  called from the caller's thread, as in clingo and pyclingo. With a live
+  `InterruptHandle` or a timeout they run on clasp's thread while the caller
+  waits. Which one applies is not a promise, so `solve_with_events` keeps its
+  `Send` bound in both cases, and with several solver threads a model can be
+  reported from any of them in every mode.
 - **S11. Propagators.** clasp **releases its own lock** inside `add_clause`,
   `propagate`, `add_watch` and `add_literal` (`clasp/src/clingo.cpp:111-127,
   230-243, 311-320`), and the design must stay sound whether or not clasp
@@ -628,6 +664,22 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
     - `Drop` clears the control pointer under the lock.
 
     This was verified with about 400,000 racing solves and ThreadSanitizer.
+  - **Mode 0 for a blocking solve.** `Control::solve`, `solve_with` without a
+    timeout and `solve_with_events` run in clingo's blocking mode 0, the phase
+    `Inside`, in which `interrupt()` does nothing, when the build has no threads
+    or when `Arc::get_mut` on the control's shared state succeeds (a private
+    function of `raw::solve`, decided before anything clones the `Arc` for the
+    search). `get_mut` succeeds only if no `InterruptHandle`, timeout thread,
+    printer slot of an application or open search holds the state. A new holder
+    can only come from `interrupt_state(&self)`, and the solve holds `&mut` for
+    its whole length, so none can appear during a mode-0 search and nothing can
+    call `interrupt()` while it runs. The borrow checker enforces this. The
+    invariant above is untouched, and any holder the rule cannot see keeps the
+    search async. A queued interrupt from before the solve is still drained by
+    clasp in every mode (`clasp_facade.cpp:322`). The yield and async entry
+    points and `solve_timed` are unchanged, and so is the application's path,
+    whose printer slot holds the state. A blocking solve that can be interrupted
+    still starts clasp's thread, which costs about 30 us per call.
   - **An interrupted result is never conclusive.** clingo 5.8.2 can report
     "unsatisfiable, exhausted" for an interrupted search of a satisfiable program
     (1,460 of 20,000 runs with an interrupting thread; reproduced in Python). So
@@ -806,8 +858,11 @@ clingo release clingox binds contains the fix (UPGRADING §1.5).
       control `main` received (published by the `main` trampoline, and by the
       script `main` trampoline through the same `with_borrowed_control`), which
       delivers the interrupt only while a search is running, so it never reaches
-      a later solve call (S13). A blocking search on a build without threads
-      cannot be interrupted from inside; it finishes silently.
+      a later solve call (S13). The `main` solve keeps async mode on a build with
+      threads, because the printer slot holds the control's `SolveSync`, so the
+      printer can stop it. A blocking search in mode 0, which is what a build
+      without threads always runs, cannot be interrupted from inside; it
+      finishes silently.
     - **Stdio.** `fflush(NULL)` before the closure; `print` flushes Rust's
       stdout, calls the default printer, and flushes C stdio; after the closure
       returns on every path both are flushed. This keeps `println!` and clingo's
@@ -1003,8 +1058,8 @@ threaded variant for cross-origin-isolated pages. WASI (`wasm32-wasip1`) works o
 with a clingo patch, nightly Rust and a Node flag, and is 37% larger, so it is not
 a supported target. `wasm32-unknown-unknown` cannot host clingo's C++.
 
-CI runs the test suite under Node.js (debug and release) on every PR and one
-headless-browser job nightly.
+CI runs the test suite under Node.js (debug and release) on every PR, and in
+headless Chromium, Firefox and WebKit on every push to `main` and nightly.
 
 ## 10. Versions over time
 

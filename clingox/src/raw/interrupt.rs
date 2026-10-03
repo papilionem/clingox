@@ -80,20 +80,32 @@
 //!
 //! # What is left
 //!
-//! - **A blocking search on a build without threads is not interrupted from
-//!   inside it.** Where clasp has threads, `Control::solve` runs in async mode
-//!   and waits for the result, which keeps the phases above; the search runs
-//!   as fast as clingo's own blocking solve, plus a thread start of about
-//!   50 us per call (see `ControlHandle::solve`). Without threads (the default WebAssembly
-//!   build) there is no async mode, so it uses mode 0, in which the whole
-//!   search, from clingo's preparation of the program to the finish event,
-//!   runs inside one `clingo_control_solve` call on the control's thread. The
-//!   only code that can call `interrupt` meanwhile is a callback on that
-//!   thread, such as the logger. It cannot tell whether clasp's strategy has
-//!   attached yet: the logger also runs during the preparation, before the
-//!   strategy exists, and an interrupt then would be queued for the next
-//!   solve call. So in this phase (`Inside`) `interrupt` returns `false` and
-//!   does nothing. No other thread exists to call it.
+//! - **A blocking search in mode 0 is not interrupted from inside it, and none
+//!   can be from outside.** `Control::solve`, `Control::solve_with` without a
+//!   timeout and `Control::solve_with_events` run in clingo's mode 0 when
+//!   nothing can interrupt them: on a build without threads, where there is no
+//!   async mode, and on a build with threads when no other holder of this
+//!   state exists (`ControlHandle::blocking_mode`). Otherwise they run in
+//!   async mode and wait for the result, which keeps the phases above. In
+//!   mode 0 the whole search, from clingo's preparation of the program to the
+//!   finish event, runs inside one `clingo_control_solve` call on the
+//!   control's thread, so the phase cannot become `Running` before the search
+//!   is over. The only code that can call `interrupt` meanwhile is a callback
+//!   on that thread, such as the logger, and it cannot tell whether clasp's
+//!   strategy has attached yet: the logger also runs during the preparation,
+//!   before the strategy exists, and an interrupt then would be queued for the
+//!   next solve call. So in this phase (`Inside`) `interrupt` returns `false`
+//!   and does nothing.
+//!
+//!   On a build with threads that limitation never shows. A holder of this
+//!   state (an `InterruptHandle`, the timer thread of a timeout, the printer
+//!   slot of an application, the handler of an open search) makes
+//!   `Arc::get_mut` fail and the search runs in async mode. A new holder can
+//!   only be made through `ControlHandle::interrupt_state`, which takes
+//!   `&self`, and the solve holds `&mut self` for its whole length, so none
+//!   can appear during a mode-0 search and no thread can call `interrupt`
+//!   then. Dropping the last handle makes the next blocking solve use mode 0
+//!   again, and a new handle makes it async again.
 //! - An interrupt during `Starting` returns `true` and is delivered as soon
 //!   as the search runs. If the search ends at its start without running
 //!   (the program is already inconsistent, or clasp stops it for another
@@ -146,8 +158,9 @@ enum Phase {
     /// clasp's strategy is running (see the module invariant).
     Running,
     /// A blocking search runs inside `clingo_control_solve` on the control's
-    /// thread (mode 0, on a build without threads). No interrupt is sent: see
-    /// "What is left" in the module documentation.
+    /// thread (mode 0). No interrupt is sent: see "What is left" in the module
+    /// documentation. On a build with threads this phase is only entered when
+    /// no `InterruptHandle` or other holder of this state exists.
     Inside,
 }
 

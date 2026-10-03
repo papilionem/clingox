@@ -128,7 +128,7 @@ fn assert_models_ignores_the_order_of_models_and_symbols() {
 #[test]
 fn assert_models_accepts_an_empty_list_for_no_models() {
     let models = all_models("a. :- a.");
-    assert!(models.is_empty());
+    assert_eq!(models, []);
     assert_models!(models, []);
 }
 

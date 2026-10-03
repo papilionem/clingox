@@ -151,7 +151,7 @@ fn a_model_without_optimisation_has_no_cost() {
     let (cost, proven) = with_only_model("a.", &[], |m| {
         (m.cost().unwrap(), m.optimality_proven().unwrap())
     });
-    assert!(cost.is_empty());
+    assert_eq!(cost, []);
     assert!(!proven);
 }
 
@@ -187,7 +187,7 @@ fn a_snapshot_keeps_everything_after_the_search_moves_on() {
     assert_eq!(snapshot.number(), 1);
     assert_eq!(snapshot.symbols(), shown.as_slice());
     assert_eq!(snapshot.all_atoms(), atoms.as_slice());
-    assert!(snapshot.cost().is_empty());
+    assert_eq!(snapshot.cost(), []);
     assert!(!snapshot.optimality_proven());
     assert_eq!(snapshot.to_string(), text);
     // The two models of the program, whichever came first.

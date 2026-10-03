@@ -729,6 +729,12 @@ impl ScopedControl<'_> {
     /// The call blocks until the search is finished (DESIGN S7). Each
     /// assumption fixes an atom to true or false for this call only.
     ///
+    /// Where the search runs is not part of the contract. With one solver
+    /// thread and no live [`InterruptHandle`](crate::InterruptHandle), the
+    /// whole search runs on the calling thread, so the logger and the
+    /// propagators are called from it. With a live handle, or with several
+    /// solver threads, clasp may call them from a thread of its own.
+    ///
     /// An assumption on an atom that does not occur in the grounding follows
     /// clingo's semantics, in which such an atom is false: assuming it true
     /// makes the program unsatisfiable, and assuming it false changes nothing.
@@ -929,7 +935,7 @@ impl ScopedControl<'_> {
             handle.load_aspif(&files).map_err(|err| {
                 // Once the files are confirmed open (just above), a failure of
                 // the call itself is a genuine clasp-side problem, of whatever
-                // kind clingo reports it as -- never only the `Parse` kind
+                // kind clingo reports it as, never only the `Parse` kind
                 // `classify_load_aspif_error` recognises. Left unpoisoned,
                 // clingo keeps whatever it already loaded before the failure
                 // and answers from it silently (a truncated program that solves

@@ -82,11 +82,15 @@ use crate::stats::MutableStatistics;
 /// otherwise let a borrowed handler's own borrow end while the search is
 /// still open, closed only by the next call on the control; an async search
 /// has the same handle-leak exposure and its callbacks also run on clasp's
-/// own thread. All three entry points additionally require `Send`: a
-/// blocking or yielding search still runs on clasp's own thread wherever
-/// clasp has threads (the caller's thread only waits for it), and with more
+/// own thread. All three entry points additionally require `Send`: with more
 /// than one solver thread clasp can report a model from whichever thread
-/// found it, in every mode alike (DESIGN S10).
+/// found it, in every mode alike, and a blocking search that something can
+/// interrupt (a live [`InterruptHandle`](crate::InterruptHandle) or a
+/// timeout) runs on clasp's own thread while the caller's thread waits for
+/// it. A blocking search that nothing can interrupt, with one solver
+/// thread, runs entirely on the caller's thread, and so does a yielding
+/// search, whose handler is called from inside the handle's `next_model`,
+/// `get` or `close` (DESIGN S7 and S10).
 ///
 /// **Reentrancy.** None of the four methods is handed anything that can
 /// reach back into the `Control` that owns the search:

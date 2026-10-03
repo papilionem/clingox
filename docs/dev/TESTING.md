@@ -170,7 +170,7 @@ runs.
 | `cargo xtask conformance-count` | recounts the conformance inventory from the submodule and checks it against `tests/conformance/NOT_PORTED.md`; `--old-unit` prints the totals under the earlier counting unit for comparison, without failing |
 | `cargo xtask test linux` | the full suite on the host, including systest and trybuild (unless `CLINGOX_SKIP_COMPILE_FAIL` is set) |
 | `cargo xtask test compile-fail` | the trybuild tests, after checking that rustc is the release in `xtask/compile-fail-toolchain` and has `rust-src` |
-| `cargo xtask test android` | builds with `cargo ndk` for `x86_64-linux-android`, pushes the test binaries to the running emulator with `adb`, and runs them |
+| `cargo xtask test android` | builds for `x86_64-linux-android` with the NDK's own clang wrappers (cargo-ndk hides the test executables' paths), pushes the test binaries to the running emulator with `adb`, and runs them |
 | `cargo xtask test wasm` | builds for `wasm32-unknown-emscripten` and runs the suite under Node.js |
 | `cargo xtask test wasm --browser <engine>` | the same tests in a headless browser through Playwright: `chromium`, `firefox`, `webkit`, or `all` |
 | `cargo xtask test all` | `test linux`, `test android` and `test wasm` at the same time, each exactly the command it is on its own; see section 10 |
@@ -184,15 +184,19 @@ The x86_64 emulator image runs the tests; `aarch64-linux-android` is built but n
 run locally.
 
 **WASM** needs the pinned Emscripten SDK (the version is in `xtask/emsdk-version`);
-`cargo xtask setup wasm` installs it.
+`cargo xtask setup wasm` installs it. Under Node.js, `cargo xtask test wasm` also
+fails when any line of the output reports `unsupported syscall`: Emscripten's debug
+libc prints that for a syscall it only stubs with made-up values. clingo's one such
+call, clasp's `getrusage`, is patched out (U14), so a report is a new call to look
+at, not noise.
 
 **Browsers.** Each test executable runs in a fresh page. The runner reports a test
 as failed on a non-zero exit, an abort, an uncaught error, a failed load, a crash,
 or no result within the time limit (`--timeout`, default 120 s). Chromium and
 Firefox run on the development machine. **Playwright's WebKit does not launch on
 Fedora** (it is built against Ubuntu's library versions), so the WebKit run fails
-there with a clear message and must be done on macOS or Ubuntu. Until then, Safari's
-engine is untested.
+there with a clear message; CI runs it on Ubuntu (`test (WASM in webkit)` in
+`ci.yml`). That is Playwright's WebKit engine, not Safari, which is untested.
 
 ## 8. Documentation tests
 

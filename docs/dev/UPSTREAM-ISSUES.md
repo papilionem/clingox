@@ -38,9 +38,9 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 | U11 | A shared global in clasp is written by every control | documented as benign | fixed |
 | U12 | clasp's termination flag is not atomic | documented | still present at a different site |
 | U13 | Android's C library lacks `canonicalize_file_name` | mitigated | fixed |
-| U14 | No CPU time on WebAssembly | documented | still present |
+| U14 | No CPU time on WebAssembly | patched | still present |
 | U15 | WebAssembly exceptions and LTO | mitigated | unchanged |
-| U16 | Playwright's WebKit does not run on Fedora | documented | not applicable |
+| U16 | Playwright's WebKit does not run on Fedora | mitigated | not applicable |
 | U17 | The C API changes in minor releases, without a SOVERSION change | mitigated | still present |
 | U18 | clingo 5.8 misbehaves on ARM64 Android 11 and later | open | unverified |
 | U19 | clasp's registry of statistic types is not thread-safe | patched | fixed |
@@ -76,6 +76,9 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 | U49 | A numeric range that ends at `INT_MAX` never ends | patched | fixed |
 | U50 | A parallel search stopped in splitting mode leaks its queued guiding paths | patched | not checked |
 | U51 | clasp opens its input once per process, so a second `--mode=clasp` run answers for the first run's file | refused in clingox | not checked |
+| U52 | A backend writer never reports a failed write, so a full disk loses the output silently | documented | not checked |
+| U53 | `clingo_control_register_backend` passes the SCC flag for the step flag, so `reify_steps` is ignored | patched | not checked |
+| U54 | Deeply nested terms in program text overflow the stack when added and when grounded | documented | not checked |
 
 ## 1. Crashes and undefined behaviour
 
@@ -224,7 +227,7 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
   `ProgramLiteral::from_raw`/`Atom` accepted values that are in-range but far
   beyond the program's actual atoms. `Control::load_aspif`
   and the backend's own doc comments now cross-reference this entry.
-- **Upstream tracker:** not searched yet.
+- **Upstream tracker:** none found (potassco/clingo searched for "stack overflow", "deeply nested", "recursion depth", "segfault nested", "isEDB", 2026-10-03).
 - **Status:** worked around in clingox.
 - **clingo 6 (wip-20):** Still present on the backend path (run). Head atom 5e8 allocates 495 MB before failing. `assign_external` and `release_external` are gone. Issue draft ready.
 
@@ -266,7 +269,7 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
   `Vec<ProgramLiteral>` inside the raw wrapper, immediately after the call
   that fills the scratch buffer and before any other clingo call can reuse
   or reallocate it. No borrow of the buffer is ever handed to the safe layer.
-- **Upstream tracker:** not searched yet.
+- **Upstream tracker:** none found (potassco/clingo searched for "stack overflow", "deeply nested", "recursion depth", "segfault nested", "isEDB", 2026-10-03).
 - **Status:** worked around in clingox.
 - **clingo 6 (wip-20):** Still present, in a changed shape (static). The span now points into a `static thread_local` buffer cleared on each call. Issue draft ready.
 
@@ -435,6 +438,31 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 - **Upstream tracker:** not reported upstream yet.
 - **Status:** documented, not mitigated.
 - **clingo 6 (wip-20):** Still present (run). Nesting depths of 20000 and more die with SIGSEGV on an 8 MiB stack in the normal solve path. Issue draft ready.
+
+### U54. Deeply nested terms in program text overflow the stack when added and when grounded
+
+- **What:** the text path recurses once per level of nesting, unlike
+  `ast::parse_string` (U34). `Program::add` checks whether a statement is ground
+  through `FunctionTerm::isEDB` (`libgringo/src/input/program.cc:68`,
+  `libgringo/src/term.cc:2637`), which recurses into every argument; and at the end
+  of grounding, `ClaspAPIBackend::str_` (`libclingo/src/clingocontrol.cc:78`) prints
+  each shown symbol through `Symbol::print` (`libgringo/src/symbol.cc:640`), which
+  recurses the same way. Located from gdb backtraces at the overflow; neither is in
+  the Bison parser.
+- **Evidence:** measured on 2026-10-03 for the guide, release build, a fact
+  `p(f(f(...1...)))` through `Control::add_base` on a spawned thread, one process
+  per run. `add_base`: 20 000 levels pass and 22 500 abort on a 2 MiB stack, 80 000
+  pass and 90 000 abort on 8 MiB. `ground` after a successful add: 15 000 pass and
+  20 000 abort on 2 MiB, 60 000 pass and 70 000 abort on 8 MiB. Only facts were
+  measured; rules may recurse elsewhere.
+- **Impact:** a process abort, not an error, for program text that nests
+  thousands of levels deep; only generated or untrusted text reaches such depths.
+- **clingox:** no workaround. The guide's known issues and its server chapter give
+  the figures and advise a large-stack thread or a separate process.
+- **Upstream tracker:** none found (potassco/clingo searched for "stack overflow", "deeply nested", "recursion depth", "segfault nested", "isEDB", 2026-10-03).
+- **Status:** documented, not mitigated.
+- **clingo 6 (wip-20):** Not checked separately; U34's clingo 6 line already saw
+  SIGSEGV at 20 000 levels on an 8 MiB stack in the normal solve path.
 
 ### U35. Grounding an `#external` with an arithmetic type term crashes the process
 
@@ -963,6 +991,48 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 - **Status:** refused in clingox.
 - **clingo 6 (wip-20):** Not checked.
 
+### U53. `clingo_control_register_backend` passes the SCC flag for the step flag, so `reify_steps` is ignored
+
+- **What:** `make_backend` (`libgringo/src/output/output.cc:848`) builds the reifier
+  with `reify_sccs` twice: `BackendAdapter<Reify::Reifier>>(std::move(out), reify_sccs,
+  reify_sccs)`, where `Reifier(std::ostream &, bool calculateSCCs, bool reifyStep)`
+  takes the step flag second. `clingo_control_register_backend` reaches it with the
+  two bits of `clingo_backend_type_reify_sccs` and `clingo_backend_type_reify_steps`
+  (`libclingo/src/control.cc:2300`). The command line takes another path
+  (`output.cc:418`) that passes `reifySteps`, and is correct.
+- **Evidence:** reified output of `a :- b. b :- a. a :- not c. c :- not a.`, 2026-10-03:
+
+  | Request | Lines | `scc` facts | Second line |
+  |---|---|---|---|
+  | reify, no flag | 24 | 0 | `atom_tuple(0).` |
+  | reify with `reify_steps` | 24 | 0 | `atom_tuple(0).` |
+  | reify with `reify_sccs` | 26 | 2 | `atom_tuple(0,0).` |
+  | `clingo --output=reify --reify-steps` | 24 | 0 | `atom_tuple(0,0).` |
+  | `clingo --output=reify --reify-sccs` | 26 | 2 | `atom_tuple(0).` |
+
+  The first three rows are the same through clingox (`BackendWriterKind`) and
+  pyclingo 5.8.2 (`ctl.register_backend(BackendType.Reify, path, reify_steps=True)`);
+  the last two are pyclingo's `python3 -m clingo`.
+- **Impact:** through the C API, `reify_steps` alone does nothing, and `reify_sccs`
+  also adds step numbers to every fact.
+  `clingox/tests/api_backend_writer.rs::reify_sccs_and_reify_steps_still_produce_a_readable_file`
+  sets both flags together, which is why it did not show.
+- **clingox:** patched (`clingox-sys/patches/U53-reify-steps.patch`): `make_backend`
+  passes `reify_steps`. `clingox/tests/patch_u53_reify_steps.rs` compares the writer's
+  output for each option alone with the command line's, byte for byte; without the
+  patch both comparisons fail (checked), and plain reify, which the defect does not
+  touch, matches either way. Vendored builds only.
+- **Upstream report (draft, not reported upstream yet):** *`register_backend` ignores
+  `reify_steps` and applies `reify_sccs` to both options.* `make_backend` in
+  `libgringo/src/output/output.cc` passes `reify_sccs` for the reifier's `reifyStep`
+  argument. Passing `reify_steps` fixes it.
+- **Upstream tracker:** none found (potassco/clingo searched for "reify steps",
+  "reify_steps", "reify-steps", "register_backend", 2026-10-03).
+- **Status:** patched. Vendored builds only; a system library keeps the defect.
+- **Remove when:** the clingo release that clingox binds passes `reify_steps` to the
+  reifier in `make_backend`; a fix is not reported upstream yet.
+- **clingo 6 (wip-20):** Not checked. The issue was found after the clingo 6 check.
+
 ## 3. Error reporting
 
 ### U6. Error kinds differ from the header's documentation
@@ -1019,9 +1089,52 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
   reports a missing or unreadable file as `ErrorKind::Runtime` without touching
   clingo. A file removed between that check and clingo's own open still
   triggers the bug. That race is documented on `Control::load`.
-- **Upstream tracker:** not searched yet.
+- **Upstream tracker:** none found (potassco/clingo searched for "stack overflow", "deeply nested", "recursion depth", "segfault nested", "isEDB", 2026-10-03).
 - **Status:** worked around in clingox.
 - **clingo 6 (wip-20):** Fixed (run). Parsing, grounding and solving work after a failed `parse_files`.
+
+### U52. A backend writer never reports a failed write, so a full disk loses the output silently
+
+- **What:** `clingo_control_register_backend` (`libclingo/src/control.cc:2289-2318`)
+  opens a `std::ofstream`, checks only that it opened, and hands it to the writer.
+  Nothing sets the stream's exception mask or reads its state afterwards: no check of
+  `fail()` or `bad()` exists in `libgringo/src/output`, `libreify` or the backend
+  code. `BackendAdapter::endStep` (`output.cc:212-217`) flushes and ignores the result.
+- **Evidence:** a writer on `/dev/full`, which opens and fails every write with
+  `ENOSPC`, and 200,000 facts (about 6 MB of aspif on a real file):
+  registering, grounding and solving all succeed, and nothing is written. Traced with
+  strace: the first write fails during grounding, then the stream writes nothing
+  more, not even at the end-of-step flush; one more failing write happens when the
+  control is freed. On a real file the same program makes 778 writes during
+  grounding and one at the flush. pyclingo 5.8.2 behaves the same:
+
+  ```python
+  ctl.register_backend(clingo.BackendType.Aspif, "/dev/full")
+  ctl.add("base", [], "".join(f"p({i})." for i in range(200000)))
+  ctl.ground([("base", [])])      # no error
+  ctl.solve()                     # SAT
+  ```
+
+  Pinned by `clingox/tests/api_backend_writer.rs::a_write_error_in_the_backend_writer_is_not_reported`
+  (Linux).
+- **Impact:** a full disk leaves a short or empty file and no error. Only `ENOSPC` was
+  tested; no code path checks the stream, so other write failures are expected to
+  behave the same. The control keeps working (the test solves after the failure):
+  the writer only observes the program.
+- **clingox:** documented on `Control::register_backend_writer`. A patch that makes
+  the failure an error is not simple: the writer can sit before clasp's own backend
+  in a combined observer (`output.cc:289-291`), so throwing from it could leave the
+  solver's step unfinished, and clingox could not tell that error from an ordinary
+  `Runtime` error to poison for it. It needs its own design, not made yet.
+- **Upstream report (draft, not reported upstream yet):** *Backend writers do not
+  report write errors.* The stream created in `clingo_control_register_backend` is
+  never checked after opening, so writing to a full disk succeeds silently with a
+  truncated file. Checking the stream after each step's flush and reporting an error
+  would fix it.
+- **Upstream tracker:** none found (potassco/clingo searched for "ofstream",
+  "disk full", "backend file write error", "register_backend", 2026-10-03).
+- **Status:** documented.
+- **clingo 6 (wip-20):** Not checked. The issue was found after the clingo 6 check.
 
 ## 4. Configuration
 
@@ -1362,9 +1475,26 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 
 ### U14. No CPU time on WebAssembly
 
-- **What:** `getrusage` is a stub on Emscripten, so `summary.times.cpu` is 0.
+- **What:** `getrusage` is a stub on Emscripten (`system/lib/libc/emscripten_syscall_stubs.c`
+  in emsdk 6.0.10): it fills in the same times on every call (1.000002 s user,
+  3.000004 s system) and returns success, and its debug libc prints
+  `warning: unsupported syscall: __syscall_getrusage` each time. clasp reads CPU time
+  through it in one place, `rusageTime` (`clasp/src/timer.cpp:81-86`).
+- **Evidence:** `cargo xtask test wasm` on 2026-10-03 printed the warning 45,325
+  times: 44,585 in the debug run (from 88 of its 145 test binaries) and 740 in
+  the `--release` run, all from the doctests; the release test binaries printed none.
+  CPU times are differences of two readings, so `summary.times.cpu` is 0. One reading
+  is used whole, when a thread of a parallel search ends (`parallel_solve.cpp:470`,
+  threaded builds only), where the made-up 4 s would be added.
+- **clingox:** patched (`clingox-sys/patches/U14-emscripten-getrusage.patch`):
+  `rusageTime` returns 0 under Emscripten without calling `getrusage`, so CPU time is
+  still 0 and nothing is printed. `cargo xtask test wasm` fails when any line of its
+  output reports an unsupported syscall; without the patch it fails on these warnings
+  (checked). Vendored builds only.
 - **Upstream tracker:** known: clasp#115 (closed 2026-01-29). The agreed change prints "N/A" and drops the key from JSON output; it is not in 5.8.2.
-- **Status:** documented.
+- **Status:** patched. Vendored builds only; a system library keeps the warnings.
+- **Remove when:** the clingo release that clingox binds stops calling `getrusage`
+  under Emscripten (clasp#115 or later).
 - **clingo 6 (wip-20):** Still present (static). `getrusage` is still a stub on Emscripten.
 
 ### U15. WebAssembly exceptions and LTO
@@ -1379,9 +1509,12 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 ### U16. Playwright's WebKit does not run on Fedora
 
 - **What:** Playwright builds WebKit against Ubuntu's library versions.
-- **Impact:** Safari's engine is untested until a macOS or Ubuntu run.
+- **Impact:** the WebKit run cannot be done on the Fedora development machine.
+- **clingox:** CI runs the WebKit suite on `ubuntu-24.04` (`test (WASM in webkit)`),
+  green in every completed run checked on 2026-10-03. Safari itself is still
+  untested: Playwright's WebKit is the engine, not the browser.
 - **Upstream tracker:** not applicable (Playwright packaging).
-- **Status:** documented (a test-infrastructure gap, not a clingo issue).
+- **Status:** mitigated (a test-infrastructure gap, not a clingo issue).
 - **clingo 6 (wip-20):** Not applicable (Playwright packaging).
 
 ## 7. Versioning

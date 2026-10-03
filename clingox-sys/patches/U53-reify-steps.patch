@@ -1,0 +1,22 @@
+Fix for clingox UPSTREAM-ISSUES U53: clingo_control_register_backend ignores
+clingo_backend_type_reify_steps and lets clingo_backend_type_reify_sccs turn
+on step numbers too.
+
+make_backend builds the reifier with reify_sccs as both of its flags, but
+Reify::Reifier(std::ostream &, bool calculateSCCs, bool reifyStep) takes the
+step flag second. The command line's --reify-steps takes another path
+(OutputBase::fromFormat), which passes reifySteps and is correct. The C API
+path now passes reify_steps. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libgringo/src/output/output.cc b/libgringo/src/output/output.cc
+--- a/libgringo/src/output/output.cc
++++ b/libgringo/src/output/output.cc
+@@ -845,7 +845,7 @@
+     UBackend backend;
+     switch (format) {
+         case OutputFormat::REIFY: {
+-            backend = gringo_make_unique<BackendAdapter<Reify::Reifier>>(std::move(out), reify_sccs, reify_sccs);
++            backend = gringo_make_unique<BackendAdapter<Reify::Reifier>>(std::move(out), reify_sccs, reify_steps);
+             break;
+         }
+         case OutputFormat::INTERMEDIATE: {

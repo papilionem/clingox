@@ -328,8 +328,8 @@ fn a_value_has_no_keys() {
     let mut ctl = Control::new().unwrap();
     {
         let config = ctl.configuration();
-        assert!(config.keys("solve.models").unwrap().is_empty());
-        assert!(config.keys("solver.0.seed").unwrap().is_empty());
+        assert_eq!(config.keys("solve.models").unwrap(), Vec::<String>::new());
+        assert_eq!(config.keys("solver.0.seed").unwrap(), Vec::<String>::new());
         // `solver` is an array and also a map: clingo resolves its names
         // through the first element (Python clingo 5.8.2 lists 48 keys there).
         assert_eq!(

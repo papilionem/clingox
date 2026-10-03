@@ -1,0 +1,10 @@
+error[E0499]: cannot borrow `ctl` as mutable more than once at a time
+  --> tests/ui/config_entry_alive_across_solve.rs:12:19
+   |
+10 |     let conf = ctl.configuration();
+   |                --- first mutable borrow occurs here
+11 |     let root = conf.root().unwrap();
+12 |     let _result = ctl.solve(&[]);
+   |                   ^^^ second mutable borrow occurs here
+13 |     let _kind = root.kind();
+   |                 ---- first borrow later used here

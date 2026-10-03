@@ -155,7 +155,7 @@ fn syntax_error_is_reported_as_runtime_error() {
         code,
         clingo_error_t::try_from(clingo_error_runtime).expect("error codes fit in an int")
     );
-    assert!(!last_error_message().is_empty());
+    assert_ne!(last_error_message(), "");
     // SAFETY: `control` is live and not used afterwards.
     unsafe { clingo_control_free(control) };
 }

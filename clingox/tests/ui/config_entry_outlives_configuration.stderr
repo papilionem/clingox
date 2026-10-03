@@ -1,0 +1,11 @@
+error[E0597]: `conf` does not live long enough
+  --> tests/ui/config_entry_outlives_configuration.rs:11:9
+   |
+ 9 |     let root = {
+   |         ---- borrow later stored here
+10 |         let conf = ctl.configuration();
+   |             ---- binding `conf` declared here
+11 |         conf.root().unwrap()
+   |         ^^^^ borrowed value does not live long enough
+12 |     };
+   |     - `conf` dropped here while still borrowed

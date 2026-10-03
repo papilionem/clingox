@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(taken[0].code(), MessageCode::RuntimeError);
         assert_eq!(taken[0].text(), "<block>:1:8-9: error: x");
         assert_eq!(taken[0].location().map(crate::Location::line), Some(1));
-        assert!(capture.take().is_empty());
+        assert_eq!(capture.take(), []);
     }
 
     #[test]

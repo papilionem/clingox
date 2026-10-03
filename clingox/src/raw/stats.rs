@@ -6,7 +6,7 @@
 //! the type of each entry before clingo is asked, and a bad path is a runtime
 //! error.
 
-use std::ffi::{CString, c_char};
+use std::ffi::{CStr, CString, c_char};
 use std::marker::PhantomData;
 
 use clingox_sys as ffi;
@@ -64,14 +64,79 @@ impl ControlHandle {
     }
 }
 
-impl Stats<'_> {
-    /// The type of the entry at `key` (clingo.h:2126).
-    fn kind(self, key: u64) -> Result<StatsKind, Error> {
+impl<'c> Stats<'c> {
+    /// The root entry.
+    pub(crate) fn root_key(self) -> StatsKey<'c> {
+        StatsKey {
+            stats: self,
+            key: self.root,
+        }
+    }
+
+    /// The number at `path`.
+    pub(crate) fn value(self, path: &str) -> Result<f64, Error> {
+        self.root_key().lookup(path)?.value()
+    }
+
+    /// The names of the map at `path`, or the indices of the array there as
+    /// text; none for a value.
+    pub(crate) fn keys(self, path: &str) -> Result<Vec<String>, Error> {
+        self.root_key().lookup(path)?.keys()
+    }
+
+    /// A copy of the whole tree, in clingo's order.
+    pub(crate) fn snapshot(self) -> Result<StatsTree, Error> {
+        self.root_key().copy()
+    }
+}
+
+/// What an entry holds, as a walk needs it: nothing below it, or elements or
+/// names with their count.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Shape {
+    /// A value, or clingo's `empty`: no children.
+    Leaf,
+    /// An array of this many elements.
+    Array(usize),
+    /// A map of this many entries.
+    Map(usize),
+}
+
+impl Shape {
+    /// The number of children.
+    pub(crate) fn len(self) -> usize {
+        match self {
+            Shape::Leaf => 0,
+            Shape::Array(len) | Shape::Map(len) => len,
+        }
+    }
+}
+
+/// An entry of the statistics: the object and the entry's key.
+///
+/// `'c` is the borrow of the control (or of the statistics event) the object
+/// was made under. While it lives nothing can ground, solve or write the
+/// statistics, so a key stays what clingo returned it for. Only this module
+/// builds one, from the root or from a value clingo returned for this object
+/// (`map_at`, `array_at`), so safe code can neither invent a key nor pair it
+/// with another object's (DESIGN S5). The raw pointer in `Stats` keeps
+/// it `!Send` and `!Sync`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct StatsKey<'c> {
+    stats: Stats<'c>,
+    key: u64,
+}
+
+impl<'c> StatsKey<'c> {
+    /// The type of the entry (clingo.h:2126).
+    fn kind(self) -> Result<StatsKind, Error> {
         let mut kind = 0;
-        // SAFETY: `self.object` is valid for `'c` (see `Stats`), `key` was
+        // SAFETY: `stats.object` is valid for `'c` (see `Stats`), `key` was
         // returned by clingo for it, and `kind` is a valid out-pointer
         // (clingo.h:2126).
-        query(|| unsafe { ffi::clingo_statistics_type(self.object, key, &raw mut kind) })?;
+        query(|| unsafe {
+            ffi::clingo_statistics_type(self.stats.object, self.key, &raw mut kind)
+        })?;
         Ok(match u32::try_from(kind) {
             Ok(ffi::clingo_statistics_type_value) => StatsKind::Value,
             Ok(ffi::clingo_statistics_type_array) => StatsKind::Array,
@@ -80,42 +145,77 @@ impl Stats<'_> {
         })
     }
 
-    /// The number of elements of the array at `key` (clingo.h:2139).
-    fn array_size(self, key: u64) -> Result<usize, Error> {
-        let mut size = 0;
-        // SAFETY: as in `kind`; the caller checked that `key` is an array, as
-        // clingo.h requires (clingo.h:2139).
-        query(|| unsafe { ffi::clingo_statistics_array_size(self.object, key, &raw mut size) })?;
-        Ok(size)
+    /// The kind of the entry as [`StatKind`] has it: clingo's `empty` is a
+    /// map, as the snapshot copies it.
+    pub(crate) fn stat_kind(self) -> Result<StatKind, Error> {
+        Ok(match self.kind()? {
+            StatsKind::Value => StatKind::Value,
+            StatsKind::Array => StatKind::Array,
+            StatsKind::Map | StatsKind::Empty => StatKind::Map,
+        })
     }
 
-    /// The key of element `index` of the array at `key` (clingo.h:2149).
-    fn array_at(self, key: u64, index: usize) -> Result<u64, Error> {
-        let mut element = 0;
-        // SAFETY: as in `kind`; the caller checked that `key` is an array with
-        // more than `index` elements (clingo.h:2149).
+    /// What the entry holds, from one type read and at most one size read.
+    pub(crate) fn shape(self) -> Result<Shape, Error> {
+        Ok(match self.kind()? {
+            StatsKind::Array => Shape::Array(self.array_size()?),
+            StatsKind::Map => Shape::Map(self.map_size()?),
+            StatsKind::Value | StatsKind::Empty => Shape::Leaf,
+        })
+    }
+
+    /// The number of elements of the array (clingo.h:2139).
+    fn array_size(self) -> Result<usize, Error> {
+        let mut size = 0;
+        // SAFETY: as in `kind`; the caller checked that the entry is an array,
+        // as clingo.h requires (clingo.h:2139).
         query(|| unsafe {
-            ffi::clingo_statistics_array_at(self.object, key, index, &raw mut element)
+            ffi::clingo_statistics_array_size(self.stats.object, self.key, &raw mut size)
         })?;
-        Ok(element)
-    }
-
-    /// The number of entries of the map at `key` (clingo.h:2173).
-    fn map_size(self, key: u64) -> Result<usize, Error> {
-        let mut size = 0;
-        // SAFETY: as in `kind`; the caller checked that `key` is a map
-        // (clingo.h:2173).
-        query(|| unsafe { ffi::clingo_statistics_map_size(self.object, key, &raw mut size) })?;
         Ok(size)
     }
 
-    /// The name of entry `index` of the map at `key`, copied (clingo.h:2193).
-    fn map_name(self, key: u64, index: usize) -> Result<String, Error> {
+    /// Element `index` of the array (clingo.h:2149).
+    ///
+    /// The caller checked that the entry is an array with more than `index`
+    /// elements: a children walk holds the size from [`StatsKey::shape`] and
+    /// stops at it, and a path walk compares against [`StatsKey::array_size`].
+    pub(crate) fn array_at(self, index: usize) -> Result<StatsKey<'c>, Error> {
+        let mut element = 0;
+        // SAFETY: as in `kind`; the caller checked that the entry is an array
+        // with more than `index` elements (clingo.h:2149).
+        query(|| unsafe {
+            ffi::clingo_statistics_array_at(self.stats.object, self.key, index, &raw mut element)
+        })?;
+        Ok(StatsKey {
+            key: element,
+            ..self
+        })
+    }
+
+    /// The number of entries of the map (clingo.h:2173).
+    fn map_size(self) -> Result<usize, Error> {
+        let mut size = 0;
+        // SAFETY: as in `kind`; the caller checked that the entry is a map
+        // (clingo.h:2173).
+        query(|| unsafe {
+            ffi::clingo_statistics_map_size(self.stats.object, self.key, &raw mut size)
+        })?;
+        Ok(size)
+    }
+
+    /// The name of entry `index` of the map, copied (clingo.h:2193).
+    fn map_name(self, index: usize) -> Result<String, Error> {
         let mut name: *const c_char = std::ptr::null();
-        // SAFETY: as in `kind`; the caller checked that `key` is a map with
+        // SAFETY: as in `kind`; the caller checked that the entry is a map with
         // more than `index` entries (clingo.h:2193).
         query(|| unsafe {
-            ffi::clingo_statistics_map_subkey_name(self.object, key, index, &raw mut name)
+            ffi::clingo_statistics_map_subkey_name(
+                self.stats.object,
+                self.key,
+                index,
+                &raw mut name,
+            )
         })?;
         // SAFETY: clingo returns a NUL-terminated name owned by the statistics,
         // which do not change while the control is borrowed; it is copied at
@@ -123,74 +223,118 @@ impl Stats<'_> {
         unsafe { borrowed_str(name) }.map(str::to_owned)
     }
 
-    /// The key of the entry `name` of the map at `key`, or `None` if there is
-    /// no such entry (clingo.h:2183, 2204).
-    fn map_at(self, key: u64, name: &str) -> Result<Option<u64>, Error> {
+    /// Whether the map has an entry `name` (clingo.h:2183).
+    fn has_subkey(self, name: &CStr) -> Result<bool, Error> {
+        let mut present = false;
+        // SAFETY: as in `kind`; the caller checked that the entry is a map,
+        // `name` is NUL-terminated and outlives the call, and `present` is a
+        // valid out-pointer (clingo.h:2183).
+        query(|| unsafe {
+            ffi::clingo_statistics_map_has_subkey(
+                self.stats.object,
+                self.key,
+                name.as_ptr(),
+                &raw mut present,
+            )
+        })?;
+        Ok(present)
+    }
+
+    /// The entry `name` of the map, which [`StatsKey::has_subkey`] confirmed
+    /// (clingo.h:2204).
+    fn map_at_present(self, name: &CStr) -> Result<StatsKey<'c>, Error> {
+        let mut entry = 0;
+        // SAFETY: as in `kind`; the entry is a map that has `name`, so clingo
+        // raises no logic error, `name` is NUL-terminated and outlives the
+        // call, and `entry` is a valid out-pointer (clingo.h:2204).
+        query(|| unsafe {
+            ffi::clingo_statistics_map_at(
+                self.stats.object,
+                self.key,
+                name.as_ptr(),
+                &raw mut entry,
+            )
+        })?;
+        Ok(StatsKey { key: entry, ..self })
+    }
+
+    /// The entry `name` of the map, or `None` if there is no such entry. The
+    /// presence check stays for every name, listed by clingo or not, so that
+    /// no clingo logic error can come from here.
+    fn map_at(self, name: &str) -> Result<Option<StatsKey<'c>>, Error> {
         // A name with a NUL byte cannot be a key.
         if name.contains('\0') {
             return Ok(None);
         }
         with_c_str(name, |name| {
-            let mut present = false;
-            // SAFETY: as in `kind`; the caller checked that `key` is a map,
-            // `name` is NUL-terminated and outlives the call, and `present` is
-            // a valid out-pointer (clingo.h:2183).
-            query(|| unsafe {
-                ffi::clingo_statistics_map_has_subkey(
-                    self.object,
-                    key,
-                    name.as_ptr(),
-                    &raw mut present,
-                )
-            })?;
-            if !present {
+            if !self.has_subkey(name)? {
                 return Ok(None);
             }
-            let mut entry = 0;
-            // SAFETY: as above; the entry exists, so clingo raises no logic
-            // error (clingo.h:2204).
-            query(|| unsafe {
-                ffi::clingo_statistics_map_at(self.object, key, name.as_ptr(), &raw mut entry)
-            })?;
-            Ok(Some(entry))
+            self.map_at_present(name).map(Some)
         })
     }
 
-    /// The number at the value entry `key` (clingo.h:2230).
-    fn value_at(self, key: u64) -> Result<f64, Error> {
+    /// Entry `index` of a map with more than `index` entries, with its name.
+    ///
+    /// A name with a `.` could not be addressed by a path, and clasp would
+    /// read it as one in `map_at`. None occurs in clingo 5.8.2's statistics
+    /// (checked in three configurations), and a user statistic cannot get one through clingox, so this is
+    /// a check that nothing reaches; it keeps a name from another binding from
+    /// turning into a different lookup.
+    pub(crate) fn map_entry(self, index: usize) -> Result<(String, StatsKey<'c>), Error> {
+        let name = self.map_name(index)?;
+        if name.contains('.') {
+            return Err(Error::new(
+                ErrorKind::Runtime,
+                format!("clingo lists the name `{name}`, which contains the path separator"),
+            ));
+        }
+        match self.map_at(&name)? {
+            Some(entry) => Ok((name, entry)),
+            None => Err(Error::new(
+                ErrorKind::Runtime,
+                format!("clingo lists `{name}` but has no entry for it"),
+            )),
+        }
+    }
+
+    /// The number at the value entry (clingo.h:2230).
+    fn value_at(self) -> Result<f64, Error> {
         let mut value = 0.0;
-        // SAFETY: as in `kind`; the caller checked that `key` is a value
+        // SAFETY: as in `kind`; the caller checked that the entry is a value
         // (clingo.h:2230).
-        query(|| unsafe { ffi::clingo_statistics_value_get(self.object, key, &raw mut value) })?;
+        query(|| unsafe {
+            ffi::clingo_statistics_value_get(self.stats.object, self.key, &raw mut value)
+        })?;
         Ok(value)
     }
 
-    /// The key of the entry at `path`, walked one checked level at a time.
-    /// The empty path is the root.
-    fn resolve(self, path: &str) -> Result<u64, Error> {
-        let mut key = self.root;
-        if path.is_empty() {
-            return Ok(key);
+    /// The entry one path part below this one, checked at this level.
+    fn step(self, part: &str) -> Result<StatsKey<'c>, Error> {
+        match self.kind()? {
+            StatsKind::Map => self.map_at(part)?,
+            StatsKind::Array => match part.parse::<usize>() {
+                Ok(index) if index < self.array_size()? => Some(self.array_at(index)?),
+                _ => None,
+            },
+            StatsKind::Value | StatsKind::Empty => None,
         }
-        for part in path.split('.') {
-            key = match self.kind(key)? {
-                StatsKind::Map => self.map_at(key, part)?,
-                StatsKind::Array => match part.parse::<usize>() {
-                    Ok(index) if index < self.array_size(key)? => Some(self.array_at(key, index)?),
-                    _ => None,
-                },
-                StatsKind::Value | StatsKind::Empty => None,
-            }
-            .ok_or_else(|| Error::new(ErrorKind::Runtime, format!("no entry `{part}`")))?;
-        }
-        Ok(key)
+        .ok_or_else(|| Error::new(ErrorKind::Runtime, format!("no entry `{part}`")))
     }
 
-    /// The number at `path`.
-    pub(crate) fn value(self, path: &str) -> Result<f64, Error> {
-        let key = self.resolve(path)?;
-        match self.kind(key)? {
-            StatsKind::Value => self.value_at(key),
+    /// The entry at `path` below this one, walked one checked level at a
+    /// time. The empty path is this entry.
+    pub(crate) fn lookup(self, path: &str) -> Result<StatsKey<'c>, Error> {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        path.split('.').try_fold(self, StatsKey::step)
+    }
+
+    /// The number at the entry. A map, array or `empty` is a runtime error.
+    pub(crate) fn value(self) -> Result<f64, Error> {
+        match self.kind()? {
+            StatsKind::Value => self.value_at(),
             kind => Err(Error::new(
                 ErrorKind::Runtime,
                 format!("the entry is {}, not a value", kind_name(kind)),
@@ -198,45 +342,39 @@ impl Stats<'_> {
         }
     }
 
-    /// The names of the map at `path`, or the indices of the array there as
-    /// text; none for a value.
-    pub(crate) fn keys(self, path: &str) -> Result<Vec<String>, Error> {
-        let key = self.resolve(path)?;
-        match self.kind(key)? {
-            StatsKind::Map => (0..self.map_size(key)?)
-                .map(|index| self.map_name(key, index))
+    /// The names of the map, or the indices of the array as text; none for a
+    /// value.
+    pub(crate) fn keys(self) -> Result<Vec<String>, Error> {
+        match self.kind()? {
+            StatsKind::Map => (0..self.map_size()?)
+                .map(|index| self.map_name(index))
                 .collect(),
-            StatsKind::Array => Ok((0..self.array_size(key)?).map(|i| i.to_string()).collect()),
+            StatsKind::Array => Ok((0..self.array_size()?).map(|i| i.to_string()).collect()),
             StatsKind::Value | StatsKind::Empty => Ok(Vec::new()),
         }
     }
 
-    /// A copy of the whole tree, in clingo's order.
-    pub(crate) fn snapshot(self) -> Result<StatsTree, Error> {
-        self.copy(self.root)
-    }
-
-    /// A copy of the tree below `key`. An entry of clingo's type `empty` is
-    /// copied as an empty map.
-    fn copy(self, key: u64) -> Result<StatsTree, Error> {
-        Ok(match self.kind(key)? {
-            StatsKind::Value => StatsTree::Value(self.value_at(key)?),
+    /// A copy of the tree below the entry. An entry of clingo's type `empty`
+    /// is copied as an empty map.
+    fn copy(self) -> Result<StatsTree, Error> {
+        Ok(match self.kind()? {
+            StatsKind::Value => StatsTree::Value(self.value_at()?),
             StatsKind::Array => StatsTree::Array(
-                (0..self.array_size(key)?)
-                    .map(|index| self.copy(self.array_at(key, index)?))
+                (0..self.array_size()?)
+                    .map(|index| self.array_at(index)?.copy())
                     .collect::<Result<_, Error>>()?,
             ),
             StatsKind::Map => StatsTree::Map(
-                (0..self.map_size(key)?)
+                (0..self.map_size()?)
                     .map(|index| {
-                        let name = self.map_name(key, index)?;
-                        let entry = self.map_at(key, &name)?.ok_or_else(|| {
+                        let name = self.map_name(index)?;
+                        let entry = self.map_at(&name)?.ok_or_else(|| {
                             Error::new(
                                 ErrorKind::Unknown,
                                 format!("clingo lists `{name}` but has no entry for it"),
                             )
                         })?;
-                        Ok((name, self.copy(entry)?))
+                        Ok((name, entry.copy()?))
                     })
                     .collect::<Result<_, Error>>()?,
             ),
@@ -335,6 +473,11 @@ impl<'a> MutableStats<'a> {
         }
     }
 
+    /// The root entry, for a read cursor lent for as long as `self` is.
+    pub(crate) fn root_key(self) -> StatsKey<'a> {
+        self.as_const().root_key()
+    }
+
     /// The number at `path`, as [`Stats::value`].
     pub(crate) fn value(self, path: &str) -> Result<f64, Error> {
         self.as_const().value(path)
@@ -351,13 +494,13 @@ impl<'a> MutableStats<'a> {
     /// runtime error here rather than the logic error clingo itself would
     /// raise, which would poison unconditionally (DESIGN S3).
     pub(crate) fn set_value(self, path: &str, value: f64) -> Result<(), Error> {
-        let key = self.as_const().resolve(path)?;
-        match self.as_const().kind(key)? {
+        let entry = self.root_key().lookup(path)?;
+        match entry.kind()? {
             StatsKind::Value => {
                 // SAFETY: `self.object` is live and non-const for `'a`
-                // (the constructor's contract); `key` was resolved against
-                // it and just checked to be a value entry (clingo.h:2239).
-                call(|| unsafe { ffi::clingo_statistics_value_set(self.object, key, value) })
+                // (the constructor's contract); `entry.key` was resolved
+                // against it and just checked to be a value entry (clingo.h:2239).
+                call(|| unsafe { ffi::clingo_statistics_value_set(self.object, entry.key, value) })
             }
             other => Err(Error::new(
                 ErrorKind::Runtime,
@@ -372,18 +515,18 @@ impl<'a> MutableStats<'a> {
     /// `subkey` but as an opaque key rather than an index, so it is computed
     /// here instead of decoded from clingo's value.
     pub(crate) fn push_array(self, path: &str, kind: StatKind) -> Result<usize, Error> {
-        let key = self.as_const().resolve(path)?;
-        match self.as_const().kind(key)? {
+        let entry = self.root_key().lookup(path)?;
+        match entry.kind()? {
             StatsKind::Array => {
-                let index = self.as_const().array_size(key)?;
+                let index = entry.array_size()?;
                 let mut subkey = 0;
-                // SAFETY: as in `set_value`; `key` is checked as an array
+                // SAFETY: as in `set_value`; `entry` is checked as an array
                 // above, and `kind` is one of clingo's own type constants
                 // (clingo.h:2159). `subkey` is a valid out-pointer.
                 call(|| unsafe {
                     ffi::clingo_statistics_array_push(
                         self.object,
-                        key,
+                        entry.key,
                         raw_kind(kind),
                         &raw mut subkey,
                     )
@@ -407,8 +550,8 @@ impl<'a> MutableStats<'a> {
     /// building one silently makes part of the tree unreachable instead of
     /// failing where the mistake was made.
     pub(crate) fn add_map_key(self, path: &str, name: &str, kind: StatKind) -> Result<(), Error> {
-        let key = self.as_const().resolve(path)?;
-        match self.as_const().kind(key)? {
+        let entry = self.root_key().lookup(path)?;
+        match entry.kind()? {
             StatsKind::Map => {
                 if name.is_empty() || name.contains('.') {
                     return Err(Error::new(
@@ -429,14 +572,14 @@ impl<'a> MutableStats<'a> {
                     )
                 })?;
                 let mut subkey = 0;
-                // SAFETY: as in `set_value`; `key` is checked as a map
+                // SAFETY: as in `set_value`; `entry` is checked as a map
                 // above, `name` is NUL-terminated and outlives the call, and
                 // `kind` is one of clingo's own type constants
                 // (clingo.h:2215). `subkey` is a valid out-pointer.
                 call(|| unsafe {
                     ffi::clingo_statistics_map_add_subkey(
                         self.object,
-                        key,
+                        entry.key,
                         name.as_ptr(),
                         raw_kind(kind),
                         &raw mut subkey,

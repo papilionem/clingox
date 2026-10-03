@@ -7,6 +7,66 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
+### Added
+
+- Entry cursors for the configuration and statistics trees: `Configuration::root`
+  and `entry`, `Statistics::root` and `entry`, `MutableStatistics::root` and
+  `entry`, the entry types `ConfigEntry` and `StatsEntry` with their `children`
+  iterators, and `PathSegment`. An entry holds clingo's key for one place in the
+  tree, so a walk costs one call into clingo per step instead of resolving a path
+  from the root on each read. The path methods are unchanged.
+
+### Changed
+
+- A blocking solve (`Control::solve`, `Control::solve_with` without a timeout and
+  `Control::solve_with_events`) now runs in clingo's blocking mode and starts no
+  thread when nothing can interrupt it: no `InterruptHandle` is alive and no
+  timeout is set. The callbacks of such a solve with one solver thread (the
+  event handler, the logger, propagators) now run on the calling thread, as in
+  clingo and pyclingo, where they used to run on a thread clasp started. With a
+  live `InterruptHandle` or a timeout nothing changes, and with several solver
+  threads a callback can still come from any of them. A
+  trivial multi-shot `Control::solve` takes 5.1 us instead of 35.5 us (median,
+  pinned to one core). The `Send` bounds are unchanged.
+- Platform support: Linux x86 (32-bit) and ARMv7, Windows ARM64 and x86 (32-bit),
+  NetBSD, OpenBSD, Android x86 (32-bit) and ARMv7, and the iOS simulator are now
+  ordinary CI jobs, whose failure fails the run, after passing in every run that
+  finished since the first release. Android ARM64 stays experimental: it is built
+  but not run, since the ARM64 runner has no hardware virtualisation.
+
+### Fixed
+
+- A timeout could be lost when it passed before the search started: the
+  interrupt that keeps it acted only on a running search. About 1 in 5 000
+  zero-timeout calls of `Control::solve_with_events` and of the yielding
+  calls with a timeout (`solve_first_with` and the others) then ran to their
+  end. The timeout thread now retries until the search accepts the interrupt or
+  the call returns.
+- Displaying a symbol that holds a string with invalid UTF-8, which only a string
+  read from a file can, panicked (`to_string`, `{}`, and printing a model that
+  contains it): `Display` returned an error. It now writes U+FFFD for the invalid
+  bytes, as `Symbol::as_string` does. `Control::add_facts` with such a symbol
+  reported `BadAlloc`, which poisons; it now reports `Utf8`, adds nothing and does
+  not poison, since writing the text lossily would add a different fact.
+- Documentation: the 508.2.0-beta.2 notes said no string read is lossy. Only
+  syntax tree text reads return `ErrorKind::Utf8` for invalid UTF-8; string
+  symbols and symbol and signature names replace it with U+FFFD, as their
+  documentation says. A test now covers the string symbol case.
+- Documentation: two clingo defects are now recorded. A backend writer
+  (`Control::register_backend_writer`) never reports a failed write, so on a
+  full disk the file is short or empty without an error (U52). With
+  `BackendWriterKind::REIFY`, `reify_steps` alone has no effect and `reify_sccs`
+  also adds step numbers (U53).
+- U14: on WebAssembly the vendored build no longer asks Emscripten's stubbed
+  `getrusage` for CPU time, so debug test binaries and doctests stop printing
+  `warning: unsupported syscall: __syscall_getrusage` (45,325 times in one run of
+  the test suite). CPU time stays 0. `cargo xtask test wasm` now fails on any
+  unsupported-syscall report.
+- U53: the vendored build patches clingo so that a backend writer's
+  `BackendWriterKind::reify_steps` adds step numbers and `reify_sccs` no longer
+  does; the reified output now matches the `clingo` command line's for each
+  option. A system clingo keeps the defect.
+
 ## [508.2.0-beta.2] - 2026-09-30
 
 508.2.0-beta.1 was tagged but not published: crates.io rejected a crate keyword longer than 20 characters.
@@ -212,8 +272,10 @@ by the way an API is shaped.
   and a negative arity (U48). Line and column numbers above `u32::MAX` are refused
   rather than truncated (U30).
 - `TheoryElement::condition` copies clingo's shared scratch buffer instead of
-  borrowing it (U24), and string reads never return a lossy conversion: non-UTF-8
-  text is `ErrorKind::Utf8`.
+  borrowing it (U24), and syntax tree text reads never return a lossy conversion:
+  non-UTF-8 text is `ErrorKind::Utf8`. String symbols and symbol and signature
+  names replace invalid UTF-8 with U+FFFD (corrected after the release; the notes
+  first said every string read).
 - Solve-event handlers never report failure to clingo for any event, because
   clingo aborts the process for three of the four (U25) and corrupts clasp for
   the model event of an async parallel search (U26). The handler's error or

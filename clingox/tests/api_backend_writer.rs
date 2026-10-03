@@ -10,6 +10,7 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::unwrap_used, reason = "tests assert on invariants")]
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use clingox::backend::BackendWriterKind;
@@ -197,5 +198,32 @@ fn reify_sccs_and_reify_steps_still_produce_a_readable_file() {
     ctl.ground(&[Part::base()]).unwrap();
     let _ = ctl.solve(&[]).unwrap();
     let content = std::fs::read_to_string(&path).unwrap();
-    assert!(!content.is_empty());
+    assert_ne!(content, "");
+}
+
+/// A writer whose file cannot take the output reports nothing (U52): clingo
+/// writes through a `std::ofstream` and never checks it, so on a full disk
+/// `ground` and `solve` succeed and the file is short or empty. `/dev/full`
+/// opens fine and fails every write with `ENOSPC`. pyclingo 5.8.2 behaves the
+/// same (`ctl.register_backend(BackendType.Aspif, "/dev/full")`, then a
+/// successful ground and a `SAT` solve), 2026-10-03. If this starts failing,
+/// clingo reports write errors now: update U52, the `register_backend_writer`
+/// docs and DESIGN S3.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_write_error_in_the_backend_writer_is_not_reported() {
+    let mut ctl = Control::new().unwrap();
+    ctl.register_backend_writer(BackendWriterKind::ASPIF, "/dev/full", false)
+        .unwrap();
+    // About 6 MB of aspif, far more than one stream buffer: traced with strace,
+    // the first write fails during `ground` and the stream writes nothing after
+    // it, not even at the end-of-step flush.
+    let mut program = String::new();
+    for i in 0..200_000 {
+        write!(program, "p({i}).").unwrap();
+    }
+    ctl.add_base(&program).unwrap();
+    ctl.ground(&[Part::base()]).unwrap();
+    assert!(ctl.solve(&[]).unwrap().is_sat());
+    assert!(!format!("{ctl:?}").contains("poisoned"));
 }

@@ -53,7 +53,7 @@ fn core_is_empty_before_the_handle_has_a_result() {
     // on a fresh yield handle returns an empty list, not an error, exactly as
     // it does for a satisfiable search (the C header's "not unsatisfiable"
     // case covers "not yet known to be unsatisfiable" the same way).
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn core_is_empty_when_the_search_is_satisfiable() {
     let mut handle = ctl.solve_yield(&[]).unwrap();
     assert!(handle.next_model().unwrap().is_some());
     assert!(handle.get().unwrap().is_sat());
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn core_is_empty_when_unsat_does_not_come_from_assumptions() {
     let mut ctl = grounded("a :- not a.");
     let mut handle = ctl.solve_yield(&[]).unwrap();
     assert!(handle.get().unwrap().is_unsat());
-    assert!(handle.core().unwrap().is_empty());
+    assert_eq!(handle.core().unwrap(), []);
 }
 
 #[test]

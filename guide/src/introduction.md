@@ -74,9 +74,7 @@ clingox is pre-release: pre-releases such as `508.2.0-beta.2` may change the API
 between them. [Versions](concepts/versions.md) explains the version numbers, the
 compatibility promise and the minimum supported Rust version.
 
-Chapters without a link in the table of contents are planned. Each is written
-together with the API it describes, and every Rust example in this guide runs as a
-test.
+Every Rust example in this guide runs as a test.
 
 ## Where to go next
 

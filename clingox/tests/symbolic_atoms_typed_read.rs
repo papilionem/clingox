@@ -63,7 +63,7 @@ fn it_matches_the_manual_read() {
 #[test]
 fn a_predicate_without_atoms_reads_as_empty() {
     let ctl = grounded("q(1).");
-    assert!(ctl.symbolic_atoms().unwrap().of::<P>().unwrap().is_empty());
+    assert_eq!(ctl.symbolic_atoms().unwrap().of::<P>().unwrap(), []);
 }
 
 #[test]

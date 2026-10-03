@@ -276,6 +276,7 @@ pub(crate) fn wasm(options: &[&str]) -> Result<()> {
         "-C link-arg=-sALLOW_MEMORY_GROWTH=1".into(),
     );
     if browsers.is_empty() {
+        let mut unsupported = 0;
         for profile in [None, Some("--release")] {
             let mut cmd = cargo();
             cmd.envs(&env)
@@ -283,7 +284,17 @@ pub(crate) fn wasm(options: &[&str]) -> Result<()> {
                 .args(["test", "--target", WASM_TARGET])
                 .args(TARGET_CRATES)
                 .args(profile);
-            run(&mut cmd)?;
+            unsupported += run_counting(&mut cmd, UNSUPPORTED_SYSCALL)?;
+        }
+        // Emscripten's debug libc reports a syscall it only stubs, and the stub
+        // returns made-up values. clingo's one such call, clasp's getrusage, is
+        // patched out (U14), so a report means a new stubbed call to look at.
+        if unsupported > 0 {
+            return Err(format!(
+                "wasm: {unsupported} lines report `{UNSUPPORTED_SYSCALL}`; a call into an \
+                 Emscripten stub needs a patch or a note (UPSTREAM-ISSUES U14)"
+            )
+            .into());
         }
         return Ok(());
     }
@@ -354,6 +365,50 @@ pub(crate) fn wasm(options: &[&str]) -> Result<()> {
 
 /// Parses `[--browser <engine>|all] [--timeout <seconds>]`. No `--browser`
 /// means the Node.js run.
+/// What Emscripten's debug libc prints when a program calls a syscall that it
+/// only stubs (`system/lib/libc/emscripten_syscall_stubs.c`).
+const UNSUPPORTED_SYSCALL: &str = "unsupported syscall";
+
+/// As [`run`], and counts the lines of stdout and stderr that contain
+/// `needle`. Both streams are passed through unchanged, as raw bytes.
+fn run_counting(cmd: &mut Command, needle: &str) -> Result<usize> {
+    fn copy(from: impl std::io::Read, mut to: impl Write, needle: &[u8]) -> std::io::Result<usize> {
+        let mut from = std::io::BufReader::new(from);
+        let mut line = Vec::new();
+        let mut hits = 0;
+        loop {
+            line.clear();
+            if std::io::BufRead::read_until(&mut from, b'\n', &mut line)? == 0 {
+                return Ok(hits);
+            }
+            if line.windows(needle.len()).any(|w| w == needle) {
+                hits += 1;
+            }
+            to.write_all(&line)?;
+        }
+    }
+    eprintln!("$ {cmd:?}");
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("cannot start {cmd:?}: {e}"))?;
+    let (stdout, stderr) = (child.stdout.take(), child.stderr.take());
+    let (stdout, stderr) = (
+        stdout.ok_or("no stdout pipe")?,
+        stderr.ok_or("no stderr pipe")?,
+    );
+    let needle_out = needle.as_bytes().to_vec();
+    let out = std::thread::spawn(move || copy(stdout, std::io::stdout(), &needle_out));
+    let err_hits = copy(stderr, std::io::stderr(), needle.as_bytes())?;
+    let out_hits = out.join().map_err(|_| "the stdout copy panicked")??;
+    let status = child.wait()?;
+    if !status.success() {
+        return Err(format!("`{cmd:?}` failed with {status}").into());
+    }
+    Ok(out_hits + err_hits)
+}
+
 fn wasm_options(options: &[&str]) -> Result<(Vec<&'static str>, u64)> {
     let mut browsers = Vec::new();
     let mut timeout = None;
@@ -471,4 +526,44 @@ fn ndk_dir() -> Result<PathBuf> {
         .pop()
         .map(|(_, path)| path)
         .ok_or_else(|| format!("no NDK under {}", sdk.join("ndk").display()).into())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    fn sh(script: &str) -> Command {
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", script]);
+        cmd
+    }
+
+    #[test]
+    fn run_counting_counts_matching_lines_on_both_streams() {
+        let script = "echo 'warning: unsupported syscall: a'; echo fine; \
+                      echo 'warning: unsupported syscall: b' >&2; printf 'no newline: unsupported syscall' >&2";
+        assert_eq!(
+            run_counting(&mut sh(script), UNSUPPORTED_SYSCALL).unwrap(),
+            3
+        );
+    }
+
+    #[test]
+    fn run_counting_passes_bytes_that_are_not_utf8() {
+        assert_eq!(
+            run_counting(&mut sh(r"printf 'a\377b\n'"), UNSUPPORTED_SYSCALL).unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn run_counting_fails_on_a_failing_command() {
+        assert!(
+            run_counting(
+                &mut sh("echo unsupported syscall; exit 3"),
+                UNSUPPORTED_SYSCALL
+            )
+            .is_err()
+        );
+    }
 }

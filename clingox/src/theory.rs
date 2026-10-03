@@ -794,8 +794,8 @@ fn term_depth(value: &TheoryTerm<'_>) -> u32 {
 ///
 /// Checked directly, in this worktree, on a 2 MB thread in a debug build
 /// (the shape `deep_theory_terms.rs`'s own acceptance test uses):
-/// `clingo_theory_atoms_term_to_string` itself -- gringo's own
-/// `TheoryData::printTerm`, not any of clingox's own code -- resolves a
+/// `clingo_theory_atoms_term_to_string` itself (gringo's own
+/// `TheoryData::printTerm`, not any of clingox's own code) resolves a
 /// left-nested chain up to depth 20000 without trouble and overflows
 /// somewhere before depth 50000. clingox's own resolving, `Display`,
 /// `Clone`, `PartialEq` and `Drop` are iterative and bounded by none of
@@ -806,7 +806,7 @@ fn term_depth(value: &TheoryTerm<'_>) -> u32 {
 /// ISSUES.md` U22's own huge-literal fixtures and every test in this
 /// crate stay orders of magnitude below it) while never handing clingo's
 /// own recursive printer a term deep enough to risk the same crash this
-/// decision fixes on clingox's side of the line -- a hostile aspif file's
+/// decision fixes on clingox's side of the line: a hostile aspif file's
 /// deeply nested theory term is exactly the
 /// input this bound is for.
 const MAX_CROSS_CHECK_DEPTH: u32 = 1000;
@@ -1201,7 +1201,7 @@ impl<'c> TheoryElement<'c> {
     /// solver literal only from inside a propagator
     /// (`clingo_propagate_init_solver_literal`), and, checked directly against
     /// clingo 5.8.2, it is ordinarily a real id from clasp's own body-id range
-    /// (`2^28` and above) -- well outside [`ProgramLiteral::MAX_MAGNITUDE`],
+    /// (`2^28` and above), well outside [`ProgramLiteral::MAX_MAGNITUDE`],
     /// which is exactly why this does not reject it the way
     /// [`ProgramLiteral::from_raw`] would (`MAX_MAGNITUDE` excludes that range
     /// for an ordinary literal, which this is not one of).

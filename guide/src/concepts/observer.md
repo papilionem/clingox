@@ -93,9 +93,11 @@ program silently, so the only safe response is to refuse to go on.
 Grounding cannot be interrupted, so clingox has no way to cut off a program
 that turns out to ground far more atoms or rules than expected, the way a
 solve can be stopped with a timeout. `GroundingLimit` and `LimitedObserver`
-build a cooperative approximation on top of the observer: once a count is
-exceeded, the *next* callback (of any kind) fails with
-`ErrorKind::GroundingLimit`, rather than letting grounding run away.
+build a cooperative approximation on top of the observer: the callback that
+pushes a count over its limit fails with `ErrorKind::GroundingLimit` (counting
+comes before checking), rather than letting grounding run away. It bounds the
+size of the ground program, not grounding time or memory
+([Set a time budget](../how-to/time-budget.md#grounding-has-no-time-budget) says what that leaves open).
 
 ```rust
 use clingox::observer::{GroundingLimit, LimitedObserver};

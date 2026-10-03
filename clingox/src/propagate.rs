@@ -17,7 +17,7 @@
 //! [`PropagateControl::propagate`], [`PropagateControl::add_watch`] and
 //! [`PropagateControl::add_literal`]. A backtrack past the propagator's own
 //! watched literals can still follow, calling [`Propagator::undo`] one or
-//! more times — but, checked directly against the vendored clasp 5.8.2, that
+//! more times, but, checked directly against the vendored clasp 5.8.2, that
 //! backtrack is always resolved after control returns to clasp, never while
 //! the triggering call is still on the same thread's own stack (see
 //! [`PropagateControl`]'s own rustdoc for the exact mechanism). This crate's
@@ -1448,7 +1448,7 @@ impl fmt::Debug for PropagateInit<'_> {
 /// for the duration of the call (`clasp/src/clingo.cpp`'s `ScopedUnlock`).
 /// A conflicting `add_clause`, or a `propagate` that reaches the same
 /// state, can still force a backtrack past the propagator's own watched
-/// literals, calling [`Propagator::undo`] one or more times — but, checked
+/// literals, calling [`Propagator::undo`] one or more times, but, checked
 /// directly against the vendored clasp 5.8.2 (`clasp/src/clingo.cpp`'s own
 /// `ClingoPropagator::Control` always sets `state_ctrl`, which makes
 /// `add_clause`'s and `propagate`'s own backtrack resolve only after
@@ -1458,7 +1458,7 @@ impl fmt::Debug for PropagateInit<'_> {
 /// outer search loop. **This crate's soundness never depended on which way
 /// that went.** `Propagator`'s methods take `&self`, are `Send + Sync`, and
 /// no lock of clingox's own is ever held across a call into
-/// `PropagateControl` — a design that stays sound whether `undo` is ever
+/// `PropagateControl`, a design that stays sound whether `undo` is ever
 /// called back synchronously or not, and costs nothing when it is not.
 /// **Still never hold a lock of your own across a call into any of the four
 /// methods above**: a future clasp version could change this, and a

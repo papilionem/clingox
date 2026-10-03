@@ -43,7 +43,7 @@ impl<'a> FunctionCall<'a> {
     /// A call that collects its values in `values`, which must be empty: a
     /// ground callback runs many times, and the buffer is kept between calls.
     pub(crate) fn new(name: Cow<'a, str>, args: &'a [Symbol], values: Vec<Symbol>) -> Self {
-        debug_assert!(values.is_empty());
+        debug_assert_eq!(values, []);
         FunctionCall { name, args, values }
     }
 

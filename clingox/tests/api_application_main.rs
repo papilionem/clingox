@@ -244,7 +244,7 @@ fn a_main_error_comes_back_unchanged() {
             error.to_string(),
             Error::new(kind, "my main failed").to_string()
         );
-        assert!(error.messages().is_empty());
+        assert_eq!(error.messages(), []);
     }
 }
 

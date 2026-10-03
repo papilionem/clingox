@@ -54,6 +54,7 @@ src/raw/symbol.rs
 src/raw/theory.rs
 src/raw/trampoline.rs
 src/script.rs
+src/segment.rs
 src/signature.rs
 src/solve.rs
 src/solve_events.rs
@@ -61,3 +62,4 @@ src/stats.rs
 src/symbol.rs
 src/testing.rs
 src/theory.rs
+src/walk.rs

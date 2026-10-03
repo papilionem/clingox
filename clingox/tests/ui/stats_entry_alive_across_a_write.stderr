@@ -1,0 +1,9 @@
+error[E0502]: cannot borrow `*step` as mutable because it is also borrowed as immutable
+  --> tests/ui/stats_entry_alive_across_a_write.rs:17:17
+   |
+16 |         let entry = step.root();
+   |                     ---- immutable borrow occurs here
+17 |         let _ = step.set_value("x", 1.0);
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^ mutable borrow occurs here
+18 |         let _kind = entry.kind();
+   |                     ----- immutable borrow later used here

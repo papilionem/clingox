@@ -43,11 +43,14 @@ a `SolveHandle` that yields models one at a time, exactly as a plain
 runs on clasp's own thread. Both of these need `Send + 'static`: dropping
 either kind of handle with `mem::forget` is safe (DESIGN S4), and doing so
 leaves the search, and the handler with it, open indefinitely, closed only by
-the next call on the control — a borrowed handler's own borrow could then end
+the next call on the control; a borrowed handler's own borrow could then end
 while the search was still able to call into it, which cannot happen to
-`solve_with_events`. All three additionally require `Send`, since a blocking
-or yielding search still runs on clasp's own thread wherever clasp has
-threads, and parallel solving can report a model from any solver thread.
+`solve_with_events`. All three additionally require `Send`: parallel solving
+can report a model from any solver thread, and a blocking search that
+something can interrupt, a live `InterruptHandle` or a timeout, runs on clasp's
+own thread while the caller's thread waits. A blocking search that nothing can
+interrupt, and a yielding search, run on the caller's thread when there is one
+solver thread, but that is not a promise and the bound stays.
 
 All three take a handler by value; none of them hand it back. For
 `solve_with_events`, a borrowed local (a closure-shaped handler struct, as the
@@ -68,7 +71,7 @@ This is the one thing to get right with this API. Returning
 through clingo's own `goon` out-parameter, and nothing is treated as a
 failure. This is not the same as an interrupt: clingo reserves its
 interrupted flag for a signal delivered from outside the search, so a
-graceful `Break` leaves the result exactly as clingo reports it —
+graceful `Break` leaves the result exactly as clingo reports it:
 satisfiable if a model was found, and neither exhausted nor interrupted.
 `Control::for_each_model`'s own early exit differs: it cancels the search,
 which clingo does report as interrupted. Returning `Err(e)` is a genuine
@@ -276,3 +279,48 @@ That patch also covers your own statistics kinds, registered through
 `push_array`/`add_map_key` the same way clasp registers its own; the
 vendored build is safe under any number of solver threads, but a system
 clingo built without the patch keeps the race.
+
+## Reading statistics by entry
+
+`Statistics::value` and `keys` take a path and resolve it from the root on
+every call, which is right for one read. To read an entry again and again, or
+to walk the tree, take an entry: `Statistics::entry(path)` resolves the path
+once, and `Statistics::root` starts a walk. A `StatsEntry` holds clingo's key
+for one place in the tree, so `value` needs no path lookup, and `children`
+lists what is below, each child with the `PathSegment` (a name or an index)
+it has under its parent.
+
+```rust
+use clingox::{Control, Part, PathSegment, StatKind};
+
+let mut ctl = Control::with_args(["--models=0"])?;
+ctl.add_base("{a;b}.")?;
+ctl.ground(&[Part::base()])?;
+ctl.solve(&[])?;
+let stats = ctl.statistics()?;
+
+// Resolve once, read as often as needed.
+let enumerated = stats.entry("summary.models.enumerated")?;
+assert_eq!(enumerated.value()?, 4.0);
+
+// Walk below an entry; maps list names, arrays list indices.
+let models = stats.entry("summary.models")?;
+assert_eq!(models.kind()?, StatKind::Map);
+for child in models.children()? {
+    let (segment, entry) = child?;
+    if segment == PathSegment::Name("optimal".to_owned()) {
+        assert_eq!(entry.value()?, 0.0);
+    }
+}
+# Ok::<(), clingox::Error>(())
+```
+
+Reading a map or array as a value is `ErrorKind::Runtime` and does not poison
+the control, as it does not by path. `StatsEntry::len` counts the children of
+any entry and is 0 for a value, unlike `ConfigEntry::len`, which is an error
+for an entry that is not an array. Inside `on_statistics`, `step.root()` gives
+the same kind of entry over the tree the handler is writing; `step` and
+`accumulated` are the `user_step` and `user_accu` maps, so the root lists only
+what the handler added. The entry borrows `step`, so write first and read after.
+A `Statistics::snapshot` is still the way to keep the numbers once the control
+moves on.
