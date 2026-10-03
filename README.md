@@ -182,11 +182,15 @@ from [the clingo crate][from-crate] and from [pyclingo][from-pyclingo].
   (146 function names of clingo 5.8 are gone, and 158 are new), so a port would be a new
   major line of clingox. See [`docs/dev/CLINGO6.md`][clingo6].
 - **Performance has a measured cost.** Against clingo's C++ API on the same clingo
-  5.8.2, grounding and solving take the same time, and small calls (creating or
-  reading a symbol, stepping to the next model) cost 20 to 200 ns more each.
+  5.8.2, grounding and solving take the same time (within 6%), and small calls
+  (creating or reading a symbol, stepping to the next model) cost up to 180 ns more
+  each. Creating a control, adding a program, grounding and solving takes 116.8 us
+  against 103.8 us for C++ and 103.1 us for the `clingo` crate. A blocking solve that
+  nothing can interrupt runs without starting a thread, so each further trivial
+  solve on a grounded control takes about 5 us instead of about 35 us.
   Reading configuration and statistics by path costs two to four times as much;
   through entries (`Configuration::root`, `Statistics::root`) a configuration walk
-  costs 1.6 times C++'s. The
+  costs 1.5 times C++'s. The
   guide's [performance page][performance] and
   [`docs/dev/BENCHMARKS.md`][benchmarks] have the numbers, including a comparison
   with the `clingo` crate and pyclingo.
