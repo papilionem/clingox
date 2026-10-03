@@ -10,7 +10,6 @@
 #![forbid(unsafe_code)]
 #![allow(clippy::unwrap_used, reason = "tests assert on invariants")]
 
-use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use clingox::backend::BackendWriterKind;
@@ -212,6 +211,8 @@ fn reify_sccs_and_reify_steps_still_produce_a_readable_file() {
 #[cfg(target_os = "linux")]
 #[test]
 fn a_write_error_in_the_backend_writer_is_not_reported() {
+    use std::fmt::Write as _;
+
     let mut ctl = Control::new().unwrap();
     ctl.register_backend_writer(BackendWriterKind::ASPIF, "/dev/full", false)
         .unwrap();

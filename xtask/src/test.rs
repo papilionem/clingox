@@ -18,7 +18,7 @@ const DEVICE_DIR: &str = "/data/local/tmp/clingox-tests";
 const WASM_TARGET: &str = "wasm32-unknown-emscripten";
 
 pub(crate) fn linux() -> Result<()> {
-    run(cargo().args(["test", "--workspace"]))
+    run(cargo().args(["test", "--workspace", "--no-fail-fast"]))
 }
 
 /// The file naming the Rust release the trybuild snapshots are made with.
@@ -281,7 +281,7 @@ pub(crate) fn wasm(options: &[&str]) -> Result<()> {
             let mut cmd = cargo();
             cmd.envs(&env)
                 .env("CARGO_TARGET_WASM32_UNKNOWN_EMSCRIPTEN_RUNNER", "node")
-                .args(["test", "--target", WASM_TARGET])
+                .args(["test", "--no-fail-fast", "--target", WASM_TARGET])
                 .args(TARGET_CRATES)
                 .args(profile);
             unsupported += run_counting(&mut cmd, UNSUPPORTED_SYSCALL)?;

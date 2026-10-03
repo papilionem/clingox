@@ -431,7 +431,7 @@ jobs:
       # trybuild's compile_fail test runs cargo inside the test, which the
       # simulator cannot do, so it is the one test file left out.
       - name: Run clingox-sys tests in the simulator
-        run: cargo test --locked --target aarch64-apple-ios-sim -p clingox-sys
+        run: cargo test --locked --no-fail-fast --target aarch64-apple-ios-sim -p clingox-sys
       - name: Run clingox tests in the simulator
         run: |
           args=(--lib)
@@ -439,7 +439,7 @@ jobs:
             name=$(basename "$file" .rs)
             [ "$name" = compile_fail ] || args+=(--test "$name")
           done
-          cargo test --locked --target aarch64-apple-ios-sim -p clingox "${args[@]}"
+          cargo test --locked --no-fail-fast --target aarch64-apple-ios-sim -p clingox "${args[@]}"
 
   # x86_64 emulator with KVM, driven by `cargo xtask test android`, which
   # builds with the runner's NDK (ANDROID_NDK_HOME) and pushes each test
@@ -604,7 +604,7 @@ jobs:
           max-size: 600M
           save: ${{ github.ref == 'refs/heads/main' }}
       - run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
-      - run: cargo test --locked --target i686-unknown-linux-gnu -p clingox-sys -p clingox
+      - run: cargo test --locked --no-fail-fast --target i686-unknown-linux-gnu -p clingox-sys -p clingox
 
   windows-i686:
     name: test (i686-pc-windows-msvc)
@@ -629,7 +629,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: cargo test --locked --target i686-pc-windows-msvc -p clingox-sys -p clingox
+      - run: cargo test --locked --no-fail-fast --target i686-pc-windows-msvc -p clingox-sys -p clingox
 
   # armv7 Linux, cross-compiled and run under qemu-user (nightly and release
   # tags only: an emulated run is slow). binfmt lets the tests' child processes
@@ -666,7 +666,7 @@ jobs:
           max-size: 600M
           save: ${{ github.ref == 'refs/heads/main' }}
       - run: sudo apt-get update && sudo apt-get install -y gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf qemu-user qemu-user-binfmt
-      - run: cargo test --locked --target armv7-unknown-linux-gnueabihf -p clingox-sys -p clingox
+      - run: cargo test --locked --no-fail-fast --target armv7-unknown-linux-gnueabihf -p clingox-sys -p clingox
 
   # 32-bit Android on one x86 emulator with KVM: i686-linux-android natively,
   # then armv7-linux-androideabi through the image's ARM translation. That the
@@ -877,7 +877,7 @@ jobs:
             set -eu
             . "$HOME/.cargo/env"
             rustc -vV
-            cargo test --locked --workspace
+            cargo test --locked --no-fail-fast --workspace
 
   netbsd:
     name: test (NetBSD)
@@ -909,7 +909,7 @@ jobs:
             # libc++ for any *BSD (guide/src/reference/platforms.md).
             export CXXSTDLIB=stdc++
             rustc -vV
-            cargo test --locked --workspace
+            cargo test --locked --no-fail-fast --workspace
 
   openbsd:
     name: test (OpenBSD)
@@ -941,7 +941,7 @@ jobs:
             # rustc needs more data segment than the login class allows.
             ulimit -d "$(ulimit -H -d)"
             rustc -vV
-            cargo test --locked --ignore-rust-version --workspace
+            cargo test --locked --no-fail-fast --ignore-rust-version --workspace
 
   # ------------------------------------------------------------ aggregator
 

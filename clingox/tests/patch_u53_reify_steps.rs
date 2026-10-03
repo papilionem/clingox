@@ -127,7 +127,11 @@ fn reified(kind: BackendWriterKind, name: &str) -> String {
     ctl.ground(&[Part::base()]).unwrap();
     let _ = ctl.solve(&[]).unwrap();
     drop(ctl);
-    std::fs::read_to_string(&path).unwrap()
+    // clingo writes the file in text mode, so Windows ends its lines with
+    // `\r\n`; the command line's output, which the expected texts copy, has `\n`.
+    std::fs::read_to_string(&path)
+        .unwrap()
+        .replace("\r\n", "\n")
 }
 
 #[test]
