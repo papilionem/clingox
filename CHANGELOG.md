@@ -7,14 +7,25 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
+## [508.2.0-beta.3] - 2026-10-03
+
 ### Added
 
 - Entry cursors for the configuration and statistics trees: `Configuration::root`
   and `entry`, `Statistics::root` and `entry`, `MutableStatistics::root` and
   `entry`, the entry types `ConfigEntry` and `StatsEntry` with their `children`
   iterators, and `PathSegment`. An entry holds clingo's key for one place in the
-  tree, so a walk costs one call into clingo per step instead of resolving a path
-  from the root on each read. The path methods are unchanged.
+  tree, so a step costs one to three calls into clingo instead of resolving a
+  path from the root on each read: a configuration walk takes 26.8 us instead of
+  77.6 us. The path methods are unchanged.
+- The guide's ten planned chapters: setting a time budget, testing rules,
+  running in the browser and on Android, using clingox in a server, rewriting
+  programs, safety and threads, the API reference, feature flags and error kinds.
+  Each was checked against the code; the server chapter recommends a separate
+  process for programs from clients, since the grounding guard bounds the size of
+  the ground program, not time or memory.
+- The performance figures in the guide and in `docs/dev/BENCHMARKS.md` were
+  measured again, against the `clingo` crate, pyclingo and clingo's C++ API.
 
 ### Changed
 
@@ -52,11 +63,12 @@ chapter: `508.2.x` contains clingo 5.8.2.
   syntax tree text reads return `ErrorKind::Utf8` for invalid UTF-8; string
   symbols and symbol and signature names replace it with U+FFFD, as their
   documentation says. A test now covers the string symbol case.
-- Documentation: two clingo defects are now recorded. A backend writer
+- Documentation: three clingo defects are now recorded. A backend writer
   (`Control::register_backend_writer`) never reports a failed write, so on a
   full disk the file is short or empty without an error (U52). With
   `BackendWriterKind::REIFY`, `reify_steps` alone has no effect and `reify_sccs`
-  also adds step numbers (U53).
+  also adds step numbers (U53). A term nested tens of thousands of levels deep in
+  program text overflows the stack when it is added or grounded (U54).
 - U14: on WebAssembly the vendored build no longer asks Emscripten's stubbed
   `getrusage` for CPU time, so debug test binaries and doctests stop printing
   `warning: unsupported syscall: __syscall_getrusage` (45,325 times in one run of

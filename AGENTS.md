@@ -23,7 +23,7 @@ Use `cargo xtask`, not bare `cargo`, for builds and checks (it sets up ccache an
 feature flags):
 
 ```sh
-cargo xtask check          # fmt, clippy, docs, doctests, generated files, deny, unsafe budget
+cargo xtask check          # fmt, clippy, docs, doctests, generated files, deny, shellcheck, unsafe budget
 cargo xtask test linux     # full suite on the host, including systest and compile-fail
 cargo xtask test wasm      # wasm32-unknown-emscripten under Node.js (setup wasm first)
 cargo xtask test android   # x86_64 emulator, needs a running device

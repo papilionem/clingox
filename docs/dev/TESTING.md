@@ -166,7 +166,7 @@ runs.
 
 | Command | What it runs |
 |---|---|
-| `cargo xtask check` | fmt, clippy, doc, `cargo deny`, the stale-bindings check, the conformance recount (below), the unsafe budget, the semver check once its baseline tag exists, the guide build, and the doctests of rustdoc, the guide and the README |
+| `cargo xtask check` | fmt, clippy, doc, `cargo deny`, shellcheck on every tracked shell script, the stale-bindings check, the conformance recount (below), the unsafe budget, the semver check once its baseline tag exists, the guide build, and the doctests of rustdoc, the guide and the README |
 | `cargo xtask conformance-count` | recounts the conformance inventory from the submodule and checks it against `tests/conformance/NOT_PORTED.md`; `--old-unit` prints the totals under the earlier counting unit for comparison, without failing |
 | `cargo xtask test linux` | the full suite on the host, including systest and trybuild (unless `CLINGOX_SKIP_COMPILE_FAIL` is set) |
 | `cargo xtask test compile-fail` | the trybuild tests, after checking that rustc is the release in `xtask/compile-fail-toolchain` and has `rust-src` |

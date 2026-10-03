@@ -16,7 +16,7 @@ To choose your own set, turn the defaults off and list what you want:
 
 ```toml
 [dependencies]
-clingox = { version = "508.2.0-beta.2", default-features = false, features = ["vendored", "derive"] }
+clingox = { version = "508.2.0-beta.3", default-features = false, features = ["vendored", "derive"] }
 ```
 
 Cargo features are additive across the whole dependency graph. If another crate in

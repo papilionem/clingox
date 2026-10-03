@@ -101,8 +101,9 @@ jobs:
       - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
         with:
           tool: cargo-deny,mdbook,cargo-semver-checks
-      # bindgen loads libclang when `xtask check` regenerates the bindings.
-      - run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      # bindgen loads libclang when `xtask check` regenerates the bindings, and
+      # `xtask check` runs shellcheck on the shell scripts.
+      - run: sudo apt-get update && sudo apt-get install -y libclang-dev shellcheck
       - run: cargo xtask check
 
   # The two clippy passes and the docs of `xtask check`, on the hosts whose

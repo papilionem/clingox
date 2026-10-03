@@ -57,6 +57,7 @@ pub(crate) fn run() -> Result<()> {
     // run against the real crates. They run on the host only.
     util::run(cargo().args(["test", "--doc", "--workspace"]))?;
     util::run(cargo().args(["deny", "check"]))?;
+    shellcheck()?;
     conformance::run()?;
     budget::check()?;
     crate::semver::check_step()?;
@@ -74,6 +75,33 @@ pub(crate) fn run() -> Result<()> {
 
 /// The vendored source must be exactly the pinned upstream commit, and the tag
 /// must contain no nested submodules (DESIGN 5.1, RULES 8).
+/// Every tracked shell script passes shellcheck. The list comes from git, so a
+/// checkout that has only some of the scripts (the public repository has two of
+/// them) checks what it has; `-x` follows the scripts that a script sources.
+/// Scripts kept under `docs/` are records of what was run and stay as they
+/// were.
+fn shellcheck() -> Result<()> {
+    let listed = output(Command::new("git").current_dir(root()).args([
+        "ls-files",
+        "--",
+        "*.sh",
+        "scripts/publish/public-pre-push",
+        ":(exclude)docs/",
+    ]))?;
+    let scripts: Vec<&str> = listed.lines().filter(|line| !line.is_empty()).collect();
+    if scripts.is_empty() {
+        return Ok(());
+    }
+    util::run(
+        Command::new("shellcheck")
+            .current_dir(root())
+            .arg("-x")
+            .args(&scripts),
+    )?;
+    eprintln!("check: {} shell scripts pass shellcheck", scripts.len());
+    Ok(())
+}
+
 fn submodule() -> Result<()> {
     let clingo = root().join("clingox-sys/clingo");
     let pinned = std::fs::read_to_string(root().join("clingox-sys/clingo.commit"))?;

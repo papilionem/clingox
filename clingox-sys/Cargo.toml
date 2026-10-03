@@ -1,6 +1,6 @@
 [package]
 name = "clingox-sys"
-version = "508.2.0-beta.2"
+version = "508.2.0-beta.3"
 description = "Raw FFI bindings to clingo 5.8 and its vendored build, the low-level crate behind clingox"
 keywords = ["clingo", "answer-set", "asp", "ffi", "sys"]
 categories = ["external-ffi-bindings"]
