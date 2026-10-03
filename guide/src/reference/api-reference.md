@@ -9,7 +9,7 @@ reference uses.
 - **On docs.rs**: [docs.rs/clingox](https://docs.rs/clingox) for the safe API and
   [docs.rs/clingox-sys](https://docs.rs/clingox-sys) for the raw declarations. The
   address `https://docs.rs/clingox/<version>` shows the release you depend on, such as
-  `508.2.0-beta.3`.
+  `508.2.0-beta.4`.
 - **Locally**: `cargo doc --open -p clingox` in your own project builds the reference
   for exactly the version and features in your `Cargo.lock`, and works offline.
 

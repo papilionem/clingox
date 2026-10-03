@@ -29,14 +29,14 @@ The [platform page](../reference/platforms.md) lists which targets are tested.
 Add clingox from crates.io:
 
 ```sh
-cargo add clingox@508.2.0-beta.3
+cargo add clingox@508.2.0-beta.4
 ```
 
 or write the dependency in `Cargo.toml` yourself:
 
 ```toml
 [dependencies]
-clingox = "508.2.0-beta.3"
+clingox = "508.2.0-beta.4"
 ```
 
 The published crate contains the clingo source, so the build needs no network. To

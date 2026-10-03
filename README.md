@@ -73,10 +73,10 @@ an atom and the type it is read into is an error, never a silently skipped atom.
 ## Installation
 
 ```sh
-cargo add clingox@508.2.0-beta.3
+cargo add clingox@508.2.0-beta.4
 ```
 
-`508.2.0-beta.3` is the current release, and a pre-release: the API may still change
+`508.2.0-beta.4` is the current release, and a pre-release: the API may still change
 before `508.2.0` (see [Versions](#versions)).
 
 The build needs Rust 1.98 or newer, CMake 3.10 or newer, and a C and C++ compiler.
@@ -202,8 +202,8 @@ The version number carries the clingo version it contains: `508.2.x` contains cl
 releases, so each clingo minor version is a new major version of clingox, and
 `cargo update` never moves you across one. Within `508.2.x` the Rust API has no
 breaking change; pre-releases (`-beta.N`) may still change it between them, and
-`cargo update` can move a `508.2.0-beta.3` requirement to a later pre-release, so
-write `=508.2.0-beta.3` if you need it to stay put. The three crates always share
+`cargo update` can move a `508.2.0-beta.4` requirement to a later pre-release, so
+write `=508.2.0-beta.4` if you need it to stay put. The three crates always share
 the same number.
 
 The minimum supported Rust version is 1.98. It can rise in any release, and the

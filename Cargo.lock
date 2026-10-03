@@ -216,7 +216,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "clingox"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 dependencies = [
  "clingox-derive",
  "clingox-sys",
@@ -228,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "clingox-derive"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "clingox-sys"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 dependencies = [
  "cmake",
 ]
@@ -740,7 +740,7 @@ dependencies = [
 
 [[package]]
 name = "systest"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 dependencies = [
  "clingox-sys",
  "ctest",
@@ -979,7 +979,7 @@ checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
 
 [[package]]
 name = "xtask"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 dependencies = [
  "bindgen",
  "clingox-sys",

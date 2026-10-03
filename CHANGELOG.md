@@ -7,7 +7,10 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
-## [508.2.0-beta.3] - 2026-10-03
+## [508.2.0-beta.4] - 2026-10-03
+
+508.2.0-beta.3 was tagged but not published: its CI ran an older shellcheck, which
+rejected a construct in a release script that the newer one accepts.
 
 ### Added
 

@@ -1,6 +1,6 @@
 [package]
 name = "clingox-derive"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 description = "Procedural macros for clingox: derive ToSymbol and FromSymbol, and sym!"
 keywords = ["clingo", "answer-set", "asp", "derive"]
 categories = ["development-tools::procedural-macro-helpers"]

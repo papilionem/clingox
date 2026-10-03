@@ -12,7 +12,10 @@ set -euo pipefail
 file="${CHANGELOG:-CHANGELOG.md}"
 cmd="${1:-}"
 version="${2:-}"
-[ -n "$cmd" ] && [ -n "$version" ] || { echo "usage: $0 rename|section <version> [date]" >&2; exit 2; }
+if [ -z "$cmd" ] || [ -z "$version" ]; then
+  echo "usage: $0 rename|section <version> [date]" >&2
+  exit 2
+fi
 
 case "$cmd" in
   rename)

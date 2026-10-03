@@ -1,6 +1,6 @@
 [package]
 name = "clingox"
-version = "508.2.0-beta.3"
+version = "508.2.0-beta.4"
 description = "Safe Rust bindings to clingo, the answer set programming system"
 keywords = ["clingo", "answer-set", "asp", "logic-programming", "solver"]
 categories = ["api-bindings", "science", "algorithms"]
@@ -28,8 +28,8 @@ include = [
 workspace = true
 
 [dependencies]
-clingox-derive = { path = "../clingox-derive", version = "=508.2.0-beta.3", optional = true }
-clingox-sys = { path = "../clingox-sys", version = "=508.2.0-beta.3", default-features = false }
+clingox-derive = { path = "../clingox-derive", version = "=508.2.0-beta.4", optional = true }
+clingox-sys = { path = "../clingox-sys", version = "=508.2.0-beta.4", default-features = false }
 log = { version = "0.4.34", optional = true }
 
 [features]
