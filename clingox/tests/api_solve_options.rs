@@ -2,9 +2,9 @@
 //! `solve_first_with`, `solve_optimal_with` and `solve_all_with` .
 //!
 //! Models and costs were checked against the Python module `clingo` 5.8.2.
-//! The long-running programs were timed with it: within 3 s, clingo 5.8.2
+//! The long-running programs were timed with it: within 30 s, clingo 5.8.2
 //! finds no model of `HARD_UNSAT`, and finds 17 improving models of
-//! `HARD_OPTIMUM` without proving the optimum.
+//! `HARD_OPTIMUM` without proving the optimum, the first after about 1 ms.
 
 #![forbid(unsafe_code)]
 
@@ -64,6 +64,14 @@ const HARD_OPTIMUM: &str =
 /// Generous: the calls below must return soon after their budget, and a
 /// search that ignored it would run for minutes.
 const LATE: Duration = Duration::from_secs(30);
+
+/// A budget that needs no model to be found within it.
+const BUDGET: Duration = Duration::from_millis(300);
+
+/// A budget that must outlast the first model of `HARD_OPTIMUM`. 300 ms did
+/// not on an armv7 build under Android's ARM translation on two cores, with
+/// the tests running in parallel; the optimum stays far from proven.
+const MODEL_BUDGET: Duration = Duration::from_secs(2);
 
 // ---------------------------------------------------------------------------
 // Outcome::Sat carries the search result
@@ -192,7 +200,7 @@ fn solve_first_with_a_timeout_is_unknown_without_a_model() {
     }
     let mut ctl = grounded(&[], HARD_UNSAT);
     let started = Instant::now();
-    let options = SolveOptions::new().timeout(Duration::from_millis(300));
+    let options = SolveOptions::new().timeout(BUDGET);
     let Outcome::Unknown(result) = ctl.solve_first_with(options).unwrap() else {
         panic!("no model of the pigeonhole problem exists");
     };
@@ -211,9 +219,9 @@ fn solve_optimal_with_a_timeout_returns_the_best_model_so_far() {
     }
     let mut ctl = grounded(&["--models=5"], HARD_OPTIMUM);
     let started = Instant::now();
-    let options = SolveOptions::new().timeout(Duration::from_millis(300));
+    let options = SolveOptions::new().timeout(MODEL_BUDGET);
     let Outcome::Sat(best, result) = ctl.solve_optimal_with(options).unwrap() else {
-        panic!("a first model comes at once");
+        panic!("a first model comes within the budget");
     };
     assert!(started.elapsed() < LATE, "{:?}", started.elapsed());
     assert!(result.is_sat() && result.is_interrupted(), "{result:?}");
@@ -233,7 +241,7 @@ fn solve_all_with_a_timeout_returns_the_models_found_so_far() {
     }
     let mut ctl = grounded(&["--models=3"], HARD_OPTIMUM);
     let started = Instant::now();
-    let options = SolveOptions::new().timeout(Duration::from_millis(300));
+    let options = SolveOptions::new().timeout(MODEL_BUDGET);
     let (result, models) = ctl.solve_all_with(options).unwrap();
     assert!(started.elapsed() < LATE, "{:?}", started.elapsed());
     assert!(result.is_sat() && result.is_interrupted(), "{result:?}");
@@ -301,7 +309,7 @@ fn returns_in_time<T: Send + 'static>(
     });
     receiver
         .recv_timeout(LATE)
-        .expect("a call with a 300 ms timeout returns within 30 s")
+        .expect("a call with a timeout of at most 2 s returns within 30 s")
 }
 
 #[test]
@@ -309,22 +317,26 @@ fn every_timed_variant_returns_within_its_bound() {
     if !has_threads() {
         return;
     }
-    let budget = || SolveOptions::new().timeout(Duration::from_millis(300));
+    let budget = |limit| SolveOptions::new().timeout(limit);
 
-    let first = returns_in_time(HARD_UNSAT, move |c| c.solve_first_with(budget()));
+    let first = returns_in_time(HARD_UNSAT, move |c| c.solve_first_with(budget(BUDGET)));
     let Ok(Outcome::Unknown(result)) = first else {
         panic!("no model of HARD_UNSAT comes within the budget: {first:?}");
     };
     assert!(result.is_interrupted(), "{result:?}");
 
-    let optimal = returns_in_time(HARD_OPTIMUM, move |c| c.solve_optimal_with(budget()));
+    let optimal = returns_in_time(HARD_OPTIMUM, move |c| {
+        c.solve_optimal_with(budget(MODEL_BUDGET))
+    });
     let Ok(Outcome::Sat(best, result)) = optimal else {
-        panic!("a first model of HARD_OPTIMUM comes at once: {optimal:?}");
+        panic!("a first model of HARD_OPTIMUM comes within the budget: {optimal:?}");
     };
     assert!(result.is_interrupted(), "{result:?}");
     assert!(!best.optimality_proven());
 
-    let all = returns_in_time(HARD_OPTIMUM, move |c| c.solve_all_with(budget()));
+    let all = returns_in_time(HARD_OPTIMUM, move |c| {
+        c.solve_all_with(budget(MODEL_BUDGET))
+    });
     let (result, models) = all.expect("an interrupted search is not an error");
     assert!(result.is_interrupted(), "{result:?}");
     assert_ne!(models, []);

@@ -231,7 +231,6 @@ jobs:
       cancel-in-progress: false
     env:
       VERSION: ${{ needs.verify.outputs.version }}
-      HAS_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
       USER_AGENT: clingox-release (https://github.com/${{ github.repository }})
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -242,16 +241,13 @@ jobs:
         with:
           toolchain: stable
       # crates.io trusted publishing: the job's OIDC identity is exchanged for a
-      # short-lived token, revoked when the job ends. A crate's first publish cannot
-      # use it, so a CARGO_REGISTRY_TOKEN secret, when one exists, is used instead
-      # (RELEASING.md).
+      # short-lived token, revoked when the job ends. No crates.io token is stored.
       - name: Trusted publishing token
         id: auth
-        if: env.HAS_REGISTRY_TOKEN != 'true'
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
       - name: Publish
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN || steps.auth.outputs.token }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           # The sparse index file of a crate (names of four or more characters),
           # one JSON line per version.

@@ -95,8 +95,7 @@ the tag itself (Use workflow from: the tag).
 - The jobs that package and publish use no cache, so nothing a pull request could
   have written to a cache reaches a published crate.
 - Publishing uses crates.io trusted publishing: the job's OIDC identity becomes a
-  short-lived token, revoked when the job ends. No crates.io token is stored after
-  the first release.
+  short-lived token, revoked when the job ends. No crates.io token is stored.
 - Tags `v*` are protected by a ruleset (below), so only maintainers can start a
   release, and a tag can be neither moved nor deleted.
 - CI runs `zizmor` on the workflows in every pull request.
@@ -118,23 +117,13 @@ In the repository settings on GitHub:
 3. **Pages.** Settings, Pages, Source: GitHub Actions, for the guide (`pages.yml`
    deploys it from every push to `main`).
 
-On crates.io, the first release needs a token, because trusted publishing can only be
-configured for a crate that exists:
-
-4. On crates.io, Account Settings, API Tokens, create a token with the scopes
-   `publish-new` and `publish-update`, limited to the crates `clingox*`, with a short
-   expiry. Store it on GitHub as the secret `CARGO_REGISTRY_TOKEN` of the `release`
-   environment (Settings, Environments, `release`, Environment secrets). The workflow
-   uses it when it exists and trusted publishing otherwise.
-5. Make the first release (`v508.2.0-beta.2`) as above.
-6. For each of `clingox-sys`, `clingox-derive` and `clingox` on crates.io: Settings,
-   Trusted Publishing, Add, GitHub, with owner `papilionem`, repository `clingox`,
-   workflow `release.yml`, environment `release`.
-7. Delete the `CARGO_REGISTRY_TOKEN` environment secret and revoke the token on
-   crates.io. Every later release uses trusted publishing.
-8. Update the installation text of the README and the guide from the git dependency
-   to `clingox = "=508.2.0-beta.2"` (Cargo selects no pre-release otherwise), and the
-   README status line ("not published yet").
+On crates.io, each of `clingox-sys`, `clingox-derive` and `clingox` has the trusted
+publisher GitHub, owner `papilionem`, repository `clingox`, workflow `release.yml`,
+environment `release` (the crate's Settings, Trusted Publishing), and requires trusted
+publishing for every new version. The workflow has no token fallback. Trusted
+publishing can only be configured for a crate that exists, so a new crate is published
+once by hand with a short-lived token limited to it, then given the same trusted
+publisher before the next release.
 
 The API check in `cargo xtask check` skips itself until a release tag exists
 (`xtask/semver-baseline` names `latest`). From the first release tag on it checks the API
