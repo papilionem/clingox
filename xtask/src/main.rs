@@ -52,6 +52,9 @@ commands:
   sanitize        the tests of clingox and clingox-sys under AddressSanitizer
                   and LeakSanitizer, then the thread tests under
                   ThreadSanitizer (nightly, Linux x86_64)
+  sanitize [--address | --thread] [--test <name>]...
+                  one sanitizer only, and only the named test files (each
+                  under every sanitizer that runs), with the full run's flags
   crate-metadata  the manifest fields crates.io checks on publish and cargo
                   does not: keywords, categories, description, licence, URLs,
                   readme (part of `check`)
@@ -89,7 +92,7 @@ fn main() -> ExitCode {
         ["test", "wasm", options @ ..] => test::wasm(options),
         ["test", "all"] => test::all(),
         ["miri"] => test::miri(),
-        ["sanitize"] => sanitize::run_all(),
+        ["sanitize", options @ ..] => sanitize::run_selected(options),
         ["crate-metadata"] => crate_metadata::check(),
         ["package-lists"] => package_lists::run(false),
         ["package-lists", "--bless"] => package_lists::run(true),

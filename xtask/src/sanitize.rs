@@ -13,6 +13,11 @@
 //! Each sanitizer builds in its own target directory, so the instrumented
 //! clingo never mixes with the normal build. The runs go one after the
 //! other, never in parallel, to keep the memory use of the builds bounded.
+//!
+//! `--address` or `--thread` runs one sanitizer only, and `--test <name>`
+//! (repeatable) runs the named test files instead of the full lists, under
+//! each sanitizer that runs, so that a rare report can be chased in one file
+//! with exactly the flags of the full run.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -102,32 +107,134 @@ impl Sanitizer {
     }
 }
 
-pub(crate) fn run_all() -> Result<()> {
+/// A test file: its package and its name without `.rs`.
+#[derive(Debug)]
+struct TestFile {
+    package: &'static str,
+    name: String,
+}
+
+/// What a `cargo xtask sanitize` run covers.
+#[derive(Debug)]
+struct Selection {
+    address: bool,
+    thread: bool,
+    /// The files named with `--test`, or `None` for the full lists.
+    tests: Option<Vec<TestFile>>,
+}
+
+fn parse(options: &[&str]) -> Result<Selection> {
+    let (mut address_only, mut thread_only) = (false, false);
+    let mut tests = Vec::new();
+    let mut rest = options.iter();
+    while let Some(option) = rest.next() {
+        match *option {
+            "--address" => address_only = true,
+            "--thread" => thread_only = true,
+            "--test" => {
+                let name = rest.next().ok_or("--test needs a test file's name")?;
+                tests.push(test_file(name)?);
+            }
+            other => return Err(format!("unknown option {other:?} for `sanitize`").into()),
+        }
+    }
+    if address_only && thread_only {
+        return Err("--address and --thread exclude each other; give neither for both".into());
+    }
+    if !thread_only && let Some(skipped) = tests.iter().find(|t| SKIPPED.contains(&t.name.as_str()))
+    {
+        return Err(format!(
+            "{} does not run under the address sanitizer (see SKIPPED in \
+             xtask/src/sanitize.rs); add --thread to run it under the thread sanitizer",
+            skipped.name
+        )
+        .into());
+    }
+    Ok(Selection {
+        address: !thread_only,
+        thread: !address_only,
+        tests: (!tests.is_empty()).then_some(tests),
+    })
+}
+
+/// The test file `name` of `clingox` or `clingox-sys`, given as `cargo test
+/// --test` takes it.
+fn test_file(name: &str) -> Result<TestFile> {
+    let name = name.strip_suffix(".rs").unwrap_or(name);
+    let found: Vec<&'static str> = [
+        ("clingox", "clingox/tests"),
+        ("clingox-sys", "clingox-sys/tests"),
+    ]
+    .into_iter()
+    .filter(|(_, dir)| root().join(dir).join(format!("{name}.rs")).is_file())
+    .map(|(package, _)| package)
+    .collect();
+    match found[..] {
+        [package] => Ok(TestFile {
+            package,
+            name: name.to_owned(),
+        }),
+        [] => Err(format!("no test file {name}.rs in clingox/tests or clingox-sys/tests").into()),
+        // `cargo test --test` would run both, and only one is meant.
+        _ => Err(format!("{name}.rs is a test file of both clingox and clingox-sys").into()),
+    }
+}
+
+pub(crate) fn run_selected(options: &[&str]) -> Result<()> {
+    let selection = parse(options)?;
     if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         return Err("`cargo xtask sanitize` runs on a Linux x86_64 host only".into());
     }
     ensure_nightly()?;
-    ensure_symbolizer()?;
-    address()?;
-    thread()?;
-    eprintln!("sanitize: the address, leak and thread sanitizers found nothing");
+    if selection.thread {
+        ensure_symbolizer()?;
+    }
+    if selection.address {
+        address(selection.tests.as_deref())?;
+    }
+    if selection.thread {
+        thread(selection.tests.as_deref())?;
+    }
+    let found = match (selection.address, selection.thread) {
+        (true, true) => "the address, leak and thread sanitizers",
+        (true, false) => "the address and leak sanitizers",
+        _ => "the thread sanitizer",
+    };
+    eprintln!("sanitize: {found} found nothing");
     Ok(())
 }
 
-/// Every test of `clingox` and `clingox-sys`, except [`SKIPPED`], with the
-/// address sanitizer and leak detection.
-fn address() -> Result<()> {
+/// Every test of `clingox` and `clingox-sys`, except [`SKIPPED`], or the
+/// named ones, with the address sanitizer and leak detection.
+fn address(named: Option<&[TestFile]>) -> Result<()> {
     let mut cmd = sanitized_cargo(Sanitizer::Address)?;
     cmd.env(
         "ASAN_OPTIONS",
         "detect_leaks=1:halt_on_error=1:abort_on_error=0",
     )
     .env("LSAN_OPTIONS", "report_objects=1");
-    cmd.args(["-p", "clingox-sys", "-p", "clingox", "--lib"]);
-    for test in test_files()? {
-        cmd.args(["--test", &test]);
+    match named {
+        None => {
+            cmd.args(["-p", "clingox-sys", "-p", "clingox", "--lib"]);
+            for test in test_files()? {
+                cmd.args(["--test", &test]);
+            }
+        }
+        Some(tests) => add_named(&mut cmd, tests),
     }
     run(&mut cmd)
+}
+
+/// `-p` for each package of `tests`, then `--test` for each file.
+fn add_named(cmd: &mut Command, tests: &[TestFile]) {
+    for package in ["clingox-sys", "clingox"] {
+        if tests.iter().any(|t| t.package == package) {
+            cmd.args(["-p", package]);
+        }
+    }
+    for test in tests {
+        cmd.args(["--test", &test.name]);
+    }
 }
 
 /// Fails unless `llvm-symbolizer` is on `PATH`. `ThreadSanitizer` names the
@@ -151,8 +258,9 @@ fn ensure_symbolizer() -> Result<()> {
     }
 }
 
-/// The thread tests, with the suppressions for clasp's known races.
-fn thread() -> Result<()> {
+/// The thread tests, or the named files, with the suppressions for clasp's
+/// known races.
+fn thread(named: Option<&[TestFile]>) -> Result<()> {
     let suppressions = root().join(TSAN_SUPPRESSIONS);
     let mut cmd = sanitized_cargo(Sanitizer::Thread)?;
     cmd.env(
@@ -163,9 +271,15 @@ fn thread() -> Result<()> {
         ),
     )
     // std must be instrumented too, or its synchronisation looks like races.
-    .args(["-Zbuild-std", "-p", "clingox"]);
-    for test in THREAD_TESTS {
-        cmd.args(["--test", test]);
+    .arg("-Zbuild-std");
+    match named {
+        None => {
+            cmd.args(["-p", "clingox"]);
+            for test in THREAD_TESTS {
+                cmd.args(["--test", test]);
+            }
+        }
+        Some(tests) => add_named(&mut cmd, tests),
     }
     run(&mut cmd)
 }
@@ -269,4 +383,55 @@ pub(crate) fn setup() -> Result<()> {
     ]))?;
     eprintln!("nightly Rust with rust-src is installed for `cargo xtask sanitize`");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names(selection: &Selection) -> Option<Vec<(&str, &str)>> {
+        selection
+            .tests
+            .as_ref()
+            .map(|tests| tests.iter().map(|t| (t.package, t.name.as_str())).collect())
+    }
+
+    #[test]
+    fn no_option_is_the_full_run() {
+        let selection = parse(&[]).unwrap();
+        assert!(selection.address && selection.thread);
+        assert_eq!(names(&selection), None);
+    }
+
+    #[test]
+    fn named_files_run_under_the_chosen_sanitizer_with_their_package() {
+        let selection =
+            parse(&["--thread", "--test", "api_threads", "--test", "raw_api.rs"]).unwrap();
+        assert!(!selection.address && selection.thread);
+        assert_eq!(
+            names(&selection),
+            Some(vec![("clingox", "api_threads"), ("clingox-sys", "raw_api")])
+        );
+        let selection = parse(&["--test", "api_threads", "--address"]).unwrap();
+        assert!(selection.address && !selection.thread);
+    }
+
+    #[test]
+    fn a_file_the_address_run_skips_needs_thread() {
+        let err = parse(&["--test", "application_printer_raw"]).unwrap_err();
+        assert!(err.to_string().contains("--thread"), "{err}");
+        assert!(parse(&["--thread", "--test", "application_printer_raw"]).is_ok());
+    }
+
+    #[test]
+    fn bad_options_are_refused() {
+        for options in [
+            &["--address", "--thread"][..],
+            &["--test"],
+            &["--test", "no_such_test_file"],
+            &["--tests", "api_threads"],
+        ] {
+            assert!(parse(options).is_err(), "{options:?}");
+        }
+    }
 }

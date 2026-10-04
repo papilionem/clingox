@@ -137,10 +137,12 @@ Upstream items that are not ported are listed in
   control, a grounding call and a racing drop. Propagator tests force backjumps with
   1, 2 and 8 threads.
 - **Sanitizers.** `cargo xtask sanitize` runs every test of `clingox` and
-  `clingox-sys`, except `compile_fail` and `user_docs`, with AddressSanitizer and
-  LeakSanitizer, then `api_threads`, `patch_u19_statistics_registry`,
-  `interrupt_races`, `api_interrupt`, `api_async` and `api_solve_options` with
-  ThreadSanitizer. Rust is built by nightly with
+  `clingox-sys` with AddressSanitizer and LeakSanitizer, except the files in
+  `SKIPPED` (`xtask/src/sanitize.rs`, each with its reason), then the thread tests
+  in `THREAD_TESTS` with ThreadSanitizer. `--address` or `--thread` runs one
+  sanitizer only, and `--test <name>` (repeatable) runs only the named files, under
+  each sanitizer that runs, with the same flags: `cargo xtask sanitize --thread
+  --test <name>` chases a rare race in one file. Rust is built by nightly with
   `-Zsanitizer` for `x86_64-unknown-linux-gnu` (ThreadSanitizer adds `-Zbuild-std`),
   and clingo by clang with the same `-fsanitize` flag, through a CMake toolchain file
   that makes CMake's compiler checks build static libraries: a sanitized test program
@@ -175,7 +177,7 @@ runs.
 | `cargo xtask test wasm --browser <engine>` | the same tests in a headless browser through Playwright: `chromium`, `firefox`, `webkit`, or `all` |
 | `cargo xtask test all` | `test linux`, `test android` and `test wasm` at the same time, each exactly the command it is on its own; see section 10 |
 | `cargo xtask setup browser` | installs the Playwright tooling and browsers |
-| `cargo xtask sanitize` | ASan+LSan, then TSan on the thread tests (nightly, see section 5) |
+| `cargo xtask sanitize [--address \| --thread] [--test <name>]...` | ASan+LSan, then TSan on the thread tests (nightly, see section 5); one sanitizer, or only the named files, on request |
 | `cargo xtask miri` | unit tests and trampolines under Miri |
 | `cargo xtask semver [--baseline-rev <rev>]` | `cargo semver-checks` for the three crates against `<rev>` or the baseline in `xtask/semver-baseline` (`latest`: the newest release tag; `cargo xtask check` skips the step while the repository has none), with the release type fixed to minor so that every breaking change is reported. Findings that are breaking for the tool but source-compatible by design are listed one by one in `xtask/semver-allow` (lint name, item path, reason) under a `baseline <tag>` line; against that release the step fails on an unlisted finding and on a listed entry that no longer occurs, and against any other release the entries are ignored |
 
