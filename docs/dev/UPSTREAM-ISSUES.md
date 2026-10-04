@@ -79,6 +79,7 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 | U52 | A backend writer never reports a failed write, so a full disk loses the output silently | documented | not checked |
 | U53 | `clingo_control_register_backend` passes the SCC flag for the step flag, so `reify_steps` is ignored | patched | not checked |
 | U54 | Deeply nested terms in program text overflow the stack when added and when grounded | documented | not checked |
+| U55 | Registering options appends to process-wide tables without a lock, so `clingo_main` and `clingo_control_new` on two threads corrupt the heap | patched | not checked |
 
 ## 1. Crashes and undefined behaviour
 
@@ -670,6 +671,55 @@ Every entry, in numeric order. U32 is a pyclingo bug and is noted in section 10.
 - **Upstream tracker:** not reported upstream yet.
 - **Status:** mitigated.
 - **clingo 6 (wip-20):** Still present for NULL members (run). A script with a NULL `callable` or `main` crashes in ground. The registry is per library now. Issue draft ready.
+
+### U55. Registering options appends to process-wide tables without a lock, so `clingo_main` and `clingo_control_new` on two threads corrupt the heap
+
+- **What:** the values of `--output`, `--output-debug` and `--mode` are parsed
+  through `Potassco::ProgramOptions::values<T>()`, a function-local static
+  `std::vector` per enumeration (`clasp/libpotassco/potassco/program_opts/typed_value.h:62, 74`).
+  `registerOptions` (`libclingo/src/gringo_options.cc:186, 199`) and
+  `ClingoApp::initOptions` (`libclingo/src/clingo_app.cc:48`) append the value names
+  to it on every call, without a lock. `clingo_control_new` holds a function-local
+  mutex while it constructs the control and registers (`libclingo/src/control.cc:2323`);
+  `clingo_main` holds none (`control.cc:2491`). An application that starts on one
+  thread while a control is created on another appends to the same vector from
+  both: one reallocation frees the buffer the other is writing. The tables also
+  grow by four entries per control and eleven per application run for the life of
+  the process (from the source; never measured as a leak).
+- **Evidence:** found by the CI run of the 508.2.0-beta.4 release
+  (`conformance_pyclingo` on ubuntu-24.04-arm died of SIGSEGV), whose tests run an
+  `Application` and create controls on parallel test threads. Locally the binary
+  failed 3 of 254 runs at 508.2.0-beta.4 and once in 171 at 508.2.0-beta.2, with
+  glibc's `double free or corruption` and `malloc(): unaligned tcache chunk
+  detected`; AddressSanitizer reported the double free in `ValueMappingBase::add`
+  under `Gringo::registerOptions`, `ClingoApp::initOptions` and `clingo_main`.
+  `clingox/tests/patch_u55_option_tables.rs` (3000 runs against three threads
+  creating controls) aborted or segfaulted in 20 of 20 runs without the patch,
+  2026-10-04.
+- **Impact:** any program that calls `Application::run` while another thread calls
+  `Control::new`: heap corruption, a double free or a crash, at a rate that depends on
+  timing. Two runs at once are refused by clingox's run flag, so that pair cannot
+  race through clingox; controls created on several threads are serialized by
+  clingo's own mutex.
+- **clingox:** patched (`clingox-sys/patches/U55-option-value-tables.patch`): each
+  table is filled once by the initializer of a function-local static reference,
+  which C++ runs exactly once and thread-safely; later registrations only read it.
+  With the patch, the test passed 50 of 50 runs and `conformance_pyclingo` 1000 of
+  1000. It is one of the thread sanitizer's tests. Vendored builds only.
+- **Upstream report (draft, not reported upstream yet):** *Concurrent `clingo_main`
+  and `clingo_control_new` corrupt the heap.* Option registration appends to the
+  `values<T>()` tables of `--output`, `--output-debug` and `--mode` on every call;
+  `clingo_control_new` serializes it with a mutex but `clingo_main` does not. Filling
+  each table once, in the initializer of a static, fixes the race and the growth.
+- **Upstream tracker:** none found (potassco/clingo, potassco/clasp and
+  potassco/libpotassco searched for "ValueMapping", "registerOptions", "clingo_main
+  thread", "clingo_control_new thread", "mutex", "race", "heap corruption",
+  2026-10-04).
+- **Status:** patched. Vendored builds only; a system library keeps the defect.
+- **Remove when:** the clingo release that clingox binds stops appending to the
+  value tables on every registration, or locks the registration in `clingo_main`
+  as well; a fix is not reported upstream yet.
+- **clingo 6 (wip-20):** Not checked. The issue was found after the clingo 6 check.
 
 ## 2. Wrong or misleading results
 

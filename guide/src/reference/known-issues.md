@@ -74,6 +74,12 @@ patches, so with one of them these remain:
   where it belongs, so the output matches the `clingo` command line's
   `--reify-steps` and `--reify-sccs`. With a system clingo, set both options or
   neither.
+- **Running an application while another thread creates a control.** An unpatched
+  clingo writes the same global tables when `Application::run` starts and when
+  `Control::new` runs, without a lock, so the two on different threads can
+  corrupt the heap and crash the process. The vendored build fills the tables once.
+  With a system clingo, do not create controls on other threads while
+  `Application::run` is starting.
 
 ## Platforms
 

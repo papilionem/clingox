@@ -37,7 +37,7 @@ const SKIPPED: [&str; 4] = [
 ];
 
 /// The thread tests that run under the thread sanitizer.
-const THREAD_TESTS: [&str; 20] = [
+const THREAD_TESTS: [&str; 21] = [
     "api_threads",
     "patch_u19_statistics_registry",
     "interrupt_races",
@@ -78,6 +78,9 @@ const THREAD_TESTS: [&str; 20] = [
     // and on clasp's thread otherwise; the test switches between the two
     // while another thread interrupts, 500 times on one control.
     "blocking_solve_mode",
+    // `Application::run` registering its options while other threads create
+    // controls, which write the same process-wide value tables (U55).
+    "patch_u55_option_tables",
 ];
 
 /// The suppressions for the races inside clasp that UPSTREAM-ISSUES records.

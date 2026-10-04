@@ -40,7 +40,7 @@ clingox = "508.2"
 Cargo treats releases that differ only in the patch number as compatible, so within
 `508.2.x` the Rust API has no breaking change: the last number only fixes bugs and
 adds. A breaking change waits for a new clingo version. Pre-releases such as
-`508.2.0-beta.4` may still change the API between them, and Cargo does not select
+`508.2.0-beta.5` may still change the API between them, and Cargo does not select
 one unless you name it.
 
 ## Deprecation

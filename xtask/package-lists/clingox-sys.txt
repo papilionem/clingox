@@ -287,5 +287,6 @@ patches/U47-ast-refcount-overflow.patch
 patches/U49-range-binder-int-max.patch
 patches/U50-parallel-split-leak.patch
 patches/U53-reify-steps.patch
+patches/U55-option-value-tables.patch
 src/bindings.rs
 src/lib.rs

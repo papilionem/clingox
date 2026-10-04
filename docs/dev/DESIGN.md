@@ -228,6 +228,10 @@ number starts the file name (RULES 8, decided 2026-09-27):
 - `U53-reify-steps.patch`: `make_backend` passes `reify_steps` to the reifier
   instead of `reify_sccs` twice, so a backend writer's reify options mean what the
   command line's do.
+- `U55-option-value-tables.patch`: the process-wide tables of option value names are
+  filled once, in the initializer of a static, instead of appended to on every
+  registration, so `clingo_main` and `clingo_control_new` on two threads no longer
+  corrupt the heap.
 
 **Mechanism.** build.rs copies the part of the submodule that CMake reads (the list
 mirrors the `include` allowlist) to `$OUT_DIR/clingo-patched`, keeping the layout,

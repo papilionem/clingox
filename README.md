@@ -73,10 +73,10 @@ an atom and the type it is read into is an error, never a silently skipped atom.
 ## Installation
 
 ```sh
-cargo add clingox@508.2.0-beta.4
+cargo add clingox@508.2.0-beta.5
 ```
 
-`508.2.0-beta.4` is the current release, and a pre-release: the API may still change
+`508.2.0-beta.5` is the current release, and a pre-release: the API may still change
 before `508.2.0` (see [Versions](#versions)).
 
 The build needs Rust 1.98 or newer, CMake 3.10 or newer, and a C and C++ compiler.
@@ -97,7 +97,7 @@ clingo for Rust. clingox is a different design, and the differences below are th
 reasons to choose it.
 
 **A current clingo, with fixes.** The `clingo` crate binds clingo 5.6.2. clingox
-builds clingo 5.8.2 from vendored source, and applies ten small patches at build
+builds clingo 5.8.2 from vendored source, and applies eleven small patches at build
 time for defects in clingo and clasp that a safe binding cannot work around from
 Rust. Each patch fixes one entry of [`docs/dev/UPSTREAM-ISSUES.md`][upstream] and has
 a test that fails without it:
@@ -114,9 +114,10 @@ a test that fails without it:
 | U49 | A numeric range that ends at `INT_MAX` never finished grounding. |
 | U50 | A parallel search interrupted while splitting leaked its queued guiding paths. |
 | U53 | A backend writer ignored `reify_steps`, and `reify_sccs` added step numbers too. |
+| U55 | Running an application while another thread created a control could corrupt the heap. |
 
 The patches apply to vendored builds only. A system clingo (`>= 5.8.1, < 5.9.0`)
-keeps these defects, and the guide says so. The record has 54 entries (one is a
+keeps these defects, and the guide says so. The record has 55 entries (one is a
 pyclingo bug), each with its evidence and what clingox does about it.
 
 **Guards that make misuse a Rust error.** The design rules are in
@@ -202,8 +203,8 @@ The version number carries the clingo version it contains: `508.2.x` contains cl
 releases, so each clingo minor version is a new major version of clingox, and
 `cargo update` never moves you across one. Within `508.2.x` the Rust API has no
 breaking change; pre-releases (`-beta.N`) may still change it between them, and
-`cargo update` can move a `508.2.0-beta.4` requirement to a later pre-release, so
-write `=508.2.0-beta.4` if you need it to stay put. The three crates always share
+`cargo update` can move a `508.2.0-beta.5` requirement to a later pre-release, so
+write `=508.2.0-beta.5` if you need it to stay put. The three crates always share
 the same number.
 
 The minimum supported Rust version is 1.98. It can rise in any release, and the

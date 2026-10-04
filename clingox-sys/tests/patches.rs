@@ -24,9 +24,9 @@ use std::process::Command;
 mod patch_applier;
 
 /// The patches, each named after its upstream issue (UPSTREAM-ISSUES U1, U2,
-/// U14, U19, U35, U46, U47, U49, U50 and U53), in the file-name order they are
+/// U14, U19, U35, U46, U47, U49, U50, U53 and U55), in the file-name order they are
 /// applied in.
-const EXPECTED: [&str; 10] = [
+const EXPECTED: [&str; 11] = [
     "U1-division-traps.patch",
     "U14-emscripten-getrusage.patch",
     "U19-statistics-type-registry.patch",
@@ -37,6 +37,7 @@ const EXPECTED: [&str; 10] = [
     "U49-range-binder-int-max.patch",
     "U50-parallel-split-leak.patch",
     "U53-reify-steps.patch",
+    "U55-option-value-tables.patch",
 ];
 
 fn manifest_dir() -> &'static Path {
@@ -124,7 +125,7 @@ fn the_vendored_build_applies_every_patch_in_order() {
         assert_eq!(
             clingox_sys::PATCHES,
             [
-                "U1", "U14", "U19", "U2", "U35", "U46", "U47", "U49", "U50", "U53"
+                "U1", "U14", "U19", "U2", "U35", "U46", "U47", "U49", "U50", "U53", "U55"
             ]
         );
     } else {

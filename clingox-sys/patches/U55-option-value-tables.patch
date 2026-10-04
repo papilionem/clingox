@@ -1,0 +1,69 @@
+Fix for clingox UPSTREAM-ISSUES U55: registering clingo's options appends to
+process-wide value tables without a lock, so clingo_main and
+clingo_control_new on two threads corrupt the heap.
+
+The values of --output, --output-debug and --mode are parsed through
+Potassco::ProgramOptions::values<T>(), a function-local static vector per
+enumeration. registerOptions and ClingoApp::initOptions appended the names to
+it on every call, so the vectors also grew by four entries per control.
+clingo_control_new holds a mutex while it registers, clingo_main does not, so
+an application starting on one thread while a control is created on another
+reallocated the same vector twice: double free, heap corruption, or a crash.
+Each table is now filled once by the initializer of a function-local static
+reference, which C++11 runs exactly once and thread-safely; later calls only
+read it. Against clingo v5.8.2; suitable for upstream.
+
+diff --git a/libclingo/src/clingo_app.cc b/libclingo/src/clingo_app.cc
+--- a/libclingo/src/clingo_app.cc
++++ b/libclingo/src/clingo_app.cc
+@@ -43,9 +43,12 @@
+     registerOptions(gringo, grOpts_, GringoOptions::AppType::Clingo);
+     root.add(gringo);
+     OptionGroup basic("Basic Options");
++    // The value table is process-wide: fill it once, thread-safely, instead of
++    // appending to it on every call.
++    static auto &modes = values<Mode>()("clingo", mode_clingo)("clasp", mode_clasp)("gringo", mode_gringo);
+     basic.addOptions()(
+         "mode",
+-        storeTo(mode_ = mode_clingo, values<Mode>()("clingo", mode_clingo)("clasp", mode_clasp)("gringo", mode_gringo)),
++        storeTo(mode_ = mode_clingo, modes),
+         "Run in {clingo|clasp|gringo} mode");
+     root.add(basic);
+     app_->register_options(*this);
+diff --git a/libclingo/src/gringo_options.cc b/libclingo/src/gringo_options.cc
+--- a/libclingo/src/gringo_options.cc
++++ b/libclingo/src/gringo_options.cc
+@@ -180,12 +180,14 @@
+              ->composing()
+              ->arg("<id>=<term>"),
+          "Replace term occurrences of <id> with <term>");
++    // The value tables are process-wide: fill each once, thread-safely,
++    // instead of appending to them on every call, which raced with a
++    // registration on another thread.
+     if (type != GringoOptions::AppType::Lib) {
+-        push(name("output", 'o'),
+-             storeTo(opts.outputFormat = Gringo::Output::OutputFormat::INTERMEDIATE,
+-                     values<Gringo::Output::OutputFormat>()("intermediate", Gringo::Output::OutputFormat::INTERMEDIATE)(
+-                         "text", Gringo::Output::OutputFormat::TEXT)("reify", Gringo::Output::OutputFormat::REIFY)(
+-                         "smodels", Gringo::Output::OutputFormat::SMODELS)),
++        static auto &formats = values<Gringo::Output::OutputFormat>()(
++            "intermediate", Gringo::Output::OutputFormat::INTERMEDIATE)("text", Gringo::Output::OutputFormat::TEXT)(
++            "reify", Gringo::Output::OutputFormat::REIFY)("smodels", Gringo::Output::OutputFormat::SMODELS);
++        push(name("output", 'o'), storeTo(opts.outputFormat = Gringo::Output::OutputFormat::INTERMEDIATE, formats),
+              "Choose output format:\n"
+              "      intermediate: print intermediate format\n"
+              "      text        : print plain text format\n"
+@@ -194,10 +196,9 @@
+              "                    (only supports basic features)",
+              level(1));
+     }
+-    push(name("output-debug"),
+-         storeTo(opts.outputOptions.debug = Output::OutputDebug::NONE,
+-                 values<Output::OutputDebug>()("none", Output::OutputDebug::NONE)("text", Output::OutputDebug::TEXT)(
+-                     "translate", Output::OutputDebug::TRANSLATE)("all", Output::OutputDebug::ALL)),
++    static auto &debugs = values<Output::OutputDebug>()("none", Output::OutputDebug::NONE)(
++        "text", Output::OutputDebug::TEXT)("translate", Output::OutputDebug::TRANSLATE)("all", Output::OutputDebug::ALL);
++    push(name("output-debug"), storeTo(opts.outputOptions.debug = Output::OutputDebug::NONE, debugs),
+          "Print debug information during output:\n"
+          "      none     : no additional info\n"
+          "      text     : print rules as plain text (prefix %%)\n"

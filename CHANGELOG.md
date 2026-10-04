@@ -7,10 +7,12 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
-## [508.2.0-beta.4] - 2026-10-03
+## [508.2.0-beta.5] - 2026-10-04
 
 508.2.0-beta.3 was tagged but not published: its CI ran an older shellcheck, which
 rejected a construct in a release script that the newer one accepts.
+508.2.0-beta.4 was tagged but not published: its CI found the heap corruption
+that U55 below fixes.
 
 ### Added
 
@@ -50,6 +52,11 @@ rejected a construct in a release script that the newer one accepts.
 
 ### Fixed
 
+- U55: `Application::run` on one thread and `Control::new` on another could
+  corrupt the heap and crash the process: clingo appends to global tables of
+  option values each time it registers its options, and only `Control::new` held a
+  lock while doing so. The vendored build patches clingo to fill the tables once.
+  The bug is in every earlier release; a system clingo keeps it.
 - A timeout could be lost when it passed before the search started: the
   interrupt that keeps it acted only on a running search. About 1 in 5 000
   zero-timeout calls of `Control::solve_with_events` and of the yielding
