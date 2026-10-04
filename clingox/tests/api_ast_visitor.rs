@@ -832,6 +832,7 @@ fn an_override_can_call_walk_before_or_after_its_own_edit() {
 /// 50,000-level chain overflowed 128 MiB and fitted in 200 MiB), well above
 /// what clingo itself needs at these depths (8 to 64 MB at depth 100 000 on
 /// 64-bit, whose frames are larger).
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 const DEEP_STACK: usize = if cfg!(target_pointer_width = "64") {
     512 << 20
 } else {

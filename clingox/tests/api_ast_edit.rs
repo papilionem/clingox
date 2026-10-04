@@ -1038,6 +1038,7 @@ fn a_failed_whole_array_replacement_changes_nothing() {
 /// process has 2 to 4 GiB of address space in all, so 128 MiB there, which is
 /// still more than clingo needs at these depths (8 to 64 MB at depth 100 000
 /// on 64-bit, whose frames are larger).
+#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 const DEEP_STACK: usize = if cfg!(target_pointer_width = "64") {
     512 << 20
 } else {

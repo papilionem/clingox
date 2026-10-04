@@ -12,6 +12,9 @@
 
 #![forbid(unsafe_code)]
 #![allow(clippy::unwrap_used, reason = "tests assert on invariants")]
+// These tests write their fixtures under `CARGO_TARGET_TMPDIR`, a directory
+// of the host, which Android devices and browsers do not have.
+#![cfg(not(any(target_os = "android", target_family = "wasm")))]
 
 use std::path::Path;
 
@@ -44,7 +47,6 @@ fn write_fixture(dir: &Path, name: &str, contents: &str) -> std::path::PathBuf {
 // ---------------------------------------------------------------------------
 
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn load_reads_a_file_and_its_rules_are_grounded_and_solved() {
     let dir = scratch_dir("api_control_load_success");
     let file = write_fixture(&dir, "program.lp", "a. b :- a.\n");
@@ -57,7 +59,6 @@ fn load_reads_a_file_and_its_rules_are_grounded_and_solved() {
 }
 
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn load_on_a_missing_file_is_a_runtime_error_and_does_not_poison() {
     let dir = scratch_dir("api_control_load_missing");
     let missing = dir.join("does-not-exist.lp");
@@ -78,7 +79,6 @@ fn load_on_a_missing_file_is_a_runtime_error_and_does_not_poison() {
 }
 
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn load_on_a_malformed_file_is_a_parse_error_with_captured_messages() {
     let dir = scratch_dir("api_control_load_malformed");
     let file = write_fixture(&dir, "bad.lp", "a :- b c.\n");
@@ -120,7 +120,6 @@ fn load_on_a_malformed_file_is_a_parse_error_with_captured_messages() {
 const ASPIF_A_THEN_B: &str = "asp 1 0 0\n1 0 1 1 0 0\n1 0 1 2 0 1 1\n4 1 a 1 1\n4 1 b 1 2\n0\n";
 
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn load_aspif_reproduces_the_model_of_the_equivalent_source_text() {
     let dir = scratch_dir("api_control_load_aspif");
     let file = write_fixture(&dir, "fact_ab.aspif", ASPIF_A_THEN_B);
@@ -148,7 +147,6 @@ fn solved_symbols(ctl: &mut Control) -> Vec<Symbol> {
 }
 
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn load_aspif_accepts_more_than_one_file_merged_into_one() {
     // The header says only the first file should carry the preamble
     // (`asp 1 0 0`); a second file with just its rules is merged into the
@@ -172,7 +170,6 @@ fn load_aspif_accepts_more_than_one_file_merged_into_one() {
 // upstream bug as `load` (UPSTREAM-ISSUES U23, checked with pyclingo 5.8.2: a
 // missing aspif file makes every later `add` fail with "parsing failed").
 #[test]
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn load_aspif_on_a_missing_file_is_a_runtime_error_and_leaves_the_control_usable() {
     let dir = scratch_dir("api_control_load_aspif_missing");
     let missing = dir.join("does-not-exist.aspif");
@@ -192,7 +189,6 @@ fn load_aspif_on_a_missing_file_is_a_runtime_error_and_leaves_the_control_usable
 /// `Symbol::as_string` returns it with U+FFFD in place of the invalid byte
 /// (a `&'static str` from clingo's symbol table cannot carry an error; AST
 /// reads return `ErrorKind::Utf8` instead, see `api_ast_parse.rs`).
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 #[test]
 fn a_non_utf8_string_constant_from_a_file_reads_back_with_a_replacement_character() {
     let dir = scratch_dir("api_control_load_non_utf8_string");
@@ -212,7 +208,6 @@ fn a_non_utf8_string_constant_from_a_file_reads_back_with_a_replacement_characte
 
 /// The string symbol of `p("a\xffb").` read from a file, its whole fact, and the
 /// control that holds it.
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 fn non_utf8_fact(dir: &str) -> (Control, Symbol) {
     let dir = scratch_dir(dir);
     let file = dir.join("bad_utf8_string.lp");
@@ -228,7 +223,6 @@ fn non_utf8_fact(dir: &str) -> (Control, Symbol) {
 /// Displaying such a symbol must not fail: `Display` writes U+FFFD for the
 /// invalid byte, the rule `as_string` follows. It used to return `fmt::Error`,
 /// which made `to_string` and `{}` panic.
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 #[test]
 fn a_non_utf8_string_symbol_displays_with_a_replacement_character() {
     let (_ctl, fact) = non_utf8_fact("api_control_load_non_utf8_display");
@@ -237,7 +231,6 @@ fn a_non_utf8_string_symbol_displays_with_a_replacement_character() {
 }
 
 /// A model that holds such a symbol displays too.
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 #[test]
 fn a_model_with_a_non_utf8_string_displays() {
     let dir = scratch_dir("api_control_load_non_utf8_model_display");
@@ -256,7 +249,6 @@ fn a_model_with_a_non_utf8_string_displays() {
 /// symbol lossily would turn the byte into U+FFFD. It reports `Utf8`, which
 /// does not poison, and adds nothing. It used to report `BadAlloc`, which
 /// poisons.
-#[cfg(not(any(target_os = "android", target_family = "wasm")))]
 #[test]
 fn add_facts_refuses_a_non_utf8_string_symbol_without_poisoning() {
     let (mut ctl, fact) = non_utf8_fact("api_control_load_non_utf8_add_facts");
