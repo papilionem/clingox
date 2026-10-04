@@ -41,7 +41,7 @@ performs:
 | `cargo xtask test linux` | the full test suite on the host, including `systest` and the compile-fail tests |
 | `cargo xtask test wasm` | the suite for `wasm32-unknown-emscripten` under Node.js (`cargo xtask setup wasm` first) |
 | `cargo xtask test android` | the suite on a running x86_64 Android emulator |
-| `cargo xtask sanitize` | AddressSanitizer, LeakSanitizer and ThreadSanitizer runs (nightly, Linux x86_64) |
+| `cargo xtask sanitize` | AddressSanitizer, LeakSanitizer and ThreadSanitizer runs (nightly, Linux x86_64); `--address` or `--thread` and `--test <name>` narrow a run |
 | `cargo xtask miri` | the unit tests under Miri (nightly) |
 
 Run `cargo xtask check` and `cargo xtask test linux` before you open a pull request.

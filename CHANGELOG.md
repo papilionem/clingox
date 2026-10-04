@@ -7,6 +7,25 @@ chapter: `508.2.x` contains clingo 5.8.2.
 
 ## Unreleased
 
+### Added
+
+- `cargo xtask sanitize` takes `--address` or `--thread` to run one sanitizer, and
+  `--test <name>` (repeatable) to run only the named test files, with the flags of
+  the full run.
+
+### Fixed
+
+- Two timeout tests failed on a slow CPU: they expected a first model within
+  300 ms, which an ARMv7 build under Android's ARM translation, with the tests
+  running in parallel, did not always find. The cases that need a model now have
+  2 s. The library was not at fault.
+- The Android and WebAssembly test builds no longer compile unused test helpers.
+
+### Security
+
+- The release workflow publishes only through crates.io trusted publishing; the
+  fallback to a stored crates.io token is removed.
+
 ## [508.2.0-beta.5] - 2026-10-04
 
 508.2.0-beta.3 was tagged but not published: its CI ran an older shellcheck, which
