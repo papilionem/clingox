@@ -129,7 +129,7 @@ jobs:
             echo "dry_run=$dry_run"
           } >> "$GITHUB_OUTPUT"
       # Before verify.sh, which reads the workspace with `cargo metadata`.
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master (v1)
         with:
           toolchain: stable
       - name: Versions, requirements, changelog
@@ -142,7 +142,7 @@ jobs:
           name: release-notes
           path: ${{ runner.temp }}/notes.md
           if-no-files-found: error
-      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
         with:
           tool: cargo-semver-checks
       # Against the previous release explicitly: `cargo xtask semver` alone takes the
@@ -195,7 +195,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master (v1)
         with:
           toolchain: stable
       # Packs the three crates and builds each from its package, clingox against the
@@ -237,7 +237,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master (v1)
         with:
           toolchain: stable
       # crates.io trusted publishing: the job's OIDC identity is exchanged for a
