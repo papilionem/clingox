@@ -129,7 +129,7 @@ jobs:
             echo "dry_run=$dry_run"
           } >> "$GITHUB_OUTPUT"
       # Before verify.sh, which reads the workspace with `cargo metadata`.
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (v1)
         with:
           toolchain: stable
       - name: Versions, requirements, changelog
@@ -137,12 +137,12 @@ jobs:
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: scripts/release/verify.sh "$TAG" --notes "$RUNNER_TEMP/notes.md"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-notes
           path: ${{ runner.temp }}/notes.md
           if-no-files-found: error
-      - uses: taiki-e/install-action@4cef1412cce204788f482e778a0b9187f9626a29 # v2.87.21
+      - uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: cargo-semver-checks
       # Against the previous release explicitly: `cargo xtask semver` alone takes the
@@ -195,7 +195,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (v1)
         with:
           toolchain: stable
       # Packs the three crates and builds each from its package, clingox against the
@@ -210,7 +210,7 @@ jobs:
             cp "target/package/$crate-$VERSION.crate" dist/
           done
           (cd dist && sha256sum -- *.crate > SHA256SUMS && cat SHA256SUMS)
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages
           path: dist/
@@ -237,7 +237,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master (v1)
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master (v1)
         with:
           toolchain: stable
       # crates.io trusted publishing: the job's OIDC identity is exchanged for a
@@ -306,7 +306,7 @@ jobs:
       PRERELEASE: ${{ needs.verify.outputs.prerelease }}
       USER_AGENT: clingox-release (https://github.com/${{ github.repository }})
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-notes
           path: notes
